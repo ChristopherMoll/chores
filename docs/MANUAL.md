@@ -1,4 +1,4 @@
-# Chores: Manual
+# MoleChores: Manual
 
 A small web app that runs on our Raspberry Pi and keeps track of who does what around the house. It started as a deck of 109 printed task cards, then became a spreadsheet, and this is the third version.
 
@@ -28,7 +28,7 @@ What it should do:
 - **Make ownership visible.** Every task has exactly one owner: Chris, Andrea, Shared, or Needs Volunteer. Nobody has to wonder whose job something is.
 - **Show what's left, not everything.** When you open the app you see what's still open today, this week and this month, and nothing else.
 - **Make it satisfying to finish things.** Crossing something off should feel good. A light layer of points, streaks and badges adds that, without turning the household into a contest.
-- **Keep it fair, not identical.** The spreadsheet's hours-per-month column carries over. The scoreboard shows each person's assigned load next to what they've actually done, so imbalances show up early.
+- **Keep it fair, not identical.** The spreadsheet's hours-per-month column carries over. Together shows each person's estimated assigned effort next to their contributions, so you can discuss imbalances early.
 - **Be transparent.** Either of you can look at the other's dashboard in full detail. There's no private view.
 - **Be boring to run.** One Python process, one SQLite file, no build step. It sits quietly next to Plex and SABnzbd and backs itself up every night.
 
@@ -40,15 +40,17 @@ Out of scope on purpose: native mobile apps, multiple households and chat. Remin
 
 ### Your dashboard
 
-Log in and you land on **My tasks**:
+Log in and you land on **My tasks**. On an iPhone the four main destinations are in the bottom navigation. Desktop uses a persistent sidebar with direct access to Manage tasks.
 
-- **Header:** today's date, how many daily tasks you have left, your current streak, this week's points and how many badges you've earned.
-- **Today / This week / This month:** one column each, with a progress bar. Open tasks are listed first. Tap the circle to cross one off. Tap the circle again to undo it if you did it by mistake.
-- **Tap a task's name** to see the full card: what it covers, plus your agreed standard if one was written in Notes.
-- **Up for grabs:** tasks marked *Needs Volunteer*. Either of you can take one and get **50% bonus points** for it.
-- **As needed:** tasks with no schedule (taxes, travel planning, birthdays and so on). Log one when you do it. The list shows when each was last done.
-- **Last 14 days:** a heat strip showing how much of your daily list you got through each day.
-- **Badges** and **recent activity** are at the bottom.
+- **Today** combines daily routines with weekly, monthly, and one-off tasks due today or overdue in their current period. Progress counts exactly the tasks in that list, once each.
+- **This week** shows weekly tasks and monthly or one-off deadlines through the end of the household's week. **This month** shows monthly tasks and one-off deadlines through month end. Daily routines stay in Today.
+- **One-off** includes tasks without a due date, so they remain easy to find. **As needed** holds your unscheduled tasks. The links below or beside the active list reach both.
+- **Tap the circle** to mark a task done. An Undo action stays in the feedback message until dismissed or replaced; completed tasks are also in a collapsible section for later undo. Only the actual doer can undo a shared task.
+- **Tap a task's name** to see what it covers, what done looks like, reminder settings, and editing. Details such as codes and monthly effort estimates stay out of the main task row.
+- **Together** contains household contributions, assigned effort, activity, and volunteer opportunities. Volunteer completions still earn 50% bonus points. Friendly competition is available in a closed disclosure.
+- **Progress** contains your weekly contributions, daily history, current milestones, and recent activity. **More** contains management, account links, reminder settings, installation help, and device-local appearance and quiet-celebration preferences.
+
+The mole celebrates a completed Today list and otherwise stays encouraging. Saving feedback comes from the server. An interrupted request can be retried safely, and the app refreshes stale state after returning from the background without discarding unsaved edits. Offline completions are not queued.
 
 ### What "done" means for each kind of task
 
@@ -66,9 +68,9 @@ A crossed-off task stays crossed off until its period ends, then it comes back a
 
 Any task can say when it's due: a date for a one-off, a day of the week for a weekly task, a day of the month for a monthly task (months without that day use their last day), or a time for a daily task. Set these on the task's edit page under **Manage**. Open tasks show a label like *Due Wed* or *By 8:00 pm*, turn red once overdue, and sort soonest first. A due day doesn't change when the task resets: a weekly task due Wednesday can still be crossed off until the week ends.
 
-### Nag me about this
+### Remind me
 
-Tap a task's name, then **🔔 Nag me about this**, and choose when you'd like a push notification if it isn't done yet, such as "1 day before at 9:00 am" or "30 minutes before". You can add several to one task. They're yours alone: your partner doesn't get them, and you can set one on any task. A 🔔 marks tasks you have a reminder on.
+Tap a task's name, then **Remind me**, and choose when you'd like a push notification if it isn't done yet, such as "1 day before at 9:00 am" or "30 minutes before". You can add several to one task. They're yours alone: your partner doesn't get them, and you can set one on any task. A bell marks tasks you have a reminder on. Notification permission is offered here and in More, rather than on the main task screen.
 
 - A task needs a due date to count back from. Daily tasks are due at their due-by time, or the end of the day if none is set. Weekly and monthly tasks with no due day are due on the last day of their period. As-needed tasks and one-offs with no date can't have reminders.
 - If the task is crossed off by then, including by your partner on a Shared task, the reminder is skipped.
@@ -79,9 +81,9 @@ Tap a task's name, then **🔔 Nag me about this**, and choose when you'd like a
 
 iOS only allows push for web apps saved to the home screen, and needs iOS 16.4 or later.
 
-1. Open `https://chores.moll.casa` in Safari, tap **Share**, then **Add to Home Screen**.
-2. Open chores **from the new icon** and log in again. The home-screen app has its own login, separate from Safari.
-3. On your dashboard, tap **Enable notifications** and allow them. **Send a test** confirms it works.
+1. Open `https://chores.moll.casa` in your iPhone browser, open the sharing menu (possibly inside More), then choose **Add to Home Screen**. If shown, leave **Open as Web App** on.
+2. Open MoleChores **from the new icon** and sign in if asked.
+3. In **More**, or on a task's **Remind me** page, tap **Enable notifications** and allow them. **Send a test** confirms it works.
 
 Do this on each device you want reminders on. Push needs the real HTTPS site, so it won't work over plain-HTTP LAN testing.
 
@@ -91,11 +93,11 @@ A *Shared* task shows up on both dashboards, and whichever of you does it crosse
 
 ### Looking at each other's progress
 
-Use **How's Andrea doing? →** on your dashboard, or **See every task →** on the Scoreboard. You'll see the other person's full dashboard in read-only form: the same lists, history, badges and activity.
+Use **See tasks** on a person's card in Together. You'll see their task lists with completion controls disabled. Ownership and task details remain transparent to both of you.
 
-### Scoreboard
+### Together and Progress
 
-Points for this week or this month, with a head-to-head bar, a 👑 for whoever's ahead, a daily points chart, progress on current lists, each person's assigned load in hours, earned badges, and a household feed of every cross-off.
+Together leads with tasks completed, points earned, and volunteer contributions for the whole household this week or month. Shared completions count once in those totals. Each person's card shows their contributions, recurring-list progress, and estimated assigned hours. Friendly competition remains available in a closed disclosure. Expand **A little extra help** for volunteer tasks, including as-needed work. Progress holds your personal history, current badges, and activity.
 
 ### Changing your password
 
@@ -105,7 +107,7 @@ Tap your initial in the top-right corner, then **Change password**.
 
 ## 3. Managing tasks (for everyone) and the admin area
 
-**Manage** in the top bar is open to everyone who's logged in. Chris and Andrea re-deal, re-estimate and edit cards from their own accounts. Re-dealing is a household conversation, not an admin job.
+**Manage tasks** in the desktop sidebar, or **More → Manage tasks** on an iPhone, is open to everyone who's logged in. Chris and Andrea re-deal, re-estimate and edit cards from their own accounts. Re-dealing is a household conversation, not an admin job.
 
 The **admin** account is kept separate for technical settings only (see [The admin area](#the-admin-area) below). It can still use Manage, but you shouldn't need it for that.
 
@@ -116,15 +118,15 @@ All 109 cards (plus any you add) are in one table. For each row you can change:
 - **Owner:** Chris, Andrea, Shared, or Needs Volunteer.
 - **Frequency:** Daily, Weekly, Monthly, Once, or Other. Changing it clears the old due setting, since it no longer applies.
 - **Hours / mo:** your estimate of total monthly effort, including the noticing and planning, not just the doing.
-- **On:** untick to retire a task without losing its history. Retired tasks disappear from dashboards.
+- **Include:** uncheck to archive a task without losing its history. Archived tasks disappear from task lists.
 
-Change as many rows as you like, then press **Save changes**. The page warns you if you try to leave with unsaved edits. The chips above the grid show each owner's task count and hours, and clicking a chip filters the table to that owner. Search and filter by group, frequency, owner or active state.
+Change as many rows as you like, then press **Save changes**. The save bar counts changed tasks and offers Discard changes. A workload preview includes tasks outside the active filters and splits shared estimates equally; one-offs are excluded. Search and filter by group, schedule, owner, or inclusion. Desktop users can select rows and apply one owner to the selection. On phones the table becomes editable task cards.
 
 ### Editing a card
 
-Click a task's name to edit its code, name, group, due setting, "What it covers" text and **Our standard** notes. Write down what you've agreed counts as done there (how often, how well, by when), because it shows on the dashboard when someone opens the task.
+Click a task's name to edit its name, ownership, schedule, due setting, "What it covers" text, and **What done looks like** notes. Group and code sit in Additional details. Wide desktops open this editor beside the table; narrower screens use a full page. Save or discard table changes before opening the side editor, and close the editor before changing table assignments. Saving returns to the original filters.
 
-**Delete** removes a task *and* its history for good. To keep the history, untick Active instead.
+**Delete task permanently** removes a task *and* its history for good. To keep the history, uncheck Include in task lists and save instead.
 
 ### Adding tasks
 
@@ -142,7 +144,7 @@ Log in as **admin** and you land on **Admin** (`/admin/`). Neither member accoun
 
 - **System:** app and schema version, Python, Flask and SQLite versions, database location and size, row counts, and the current configuration (read-only; settings live in the env file).
 - **Users:** change display names and colours, and set a new password for anyone who's locked out. The three accounts are fixed: there's no sign-up page.
-- **Feed corrections:** a *remove* link on each household-feed entry on the Scoreboard, for cross-offs made by mistake.
+- **Feed corrections:** a *Remove* link on each household-feed entry in Together, for cross-offs made by mistake.
 
 Any future technical or admin-level configuration goes here, so members never have to see it.
 
@@ -185,7 +187,7 @@ Points are **saved at the moment you cross something off**. If you later change 
 | 🙋 Volunteer | Picked up a Needs Volunteer task this week |
 | 🦸 Household hero | 5+ volunteer pickups this month |
 
-**Assigned load** on the scoreboard is each person's own hours plus half of all Shared hours, not counting one-offs. This is the spreadsheet's "fair, not identical" check, kept in view.
+**Assigned effort** in Together and Manage tasks is each person's own hours plus half of all Shared hours, not counting one-offs. Tasks without an estimate do not contribute hours; Manage tasks calls out missing estimates. These figures support the spreadsheet's "fair, not identical" discussion.
 
 ---
 
@@ -270,7 +272,7 @@ Seven tables (see `chores/db.py`):
 
 **Flask + SQLite + server-rendered HTML.** Two people, a few hundred page views a week, and a Pi that also runs Plex. A framework with an SPA front end, a database server, or a container stack would all be more to maintain than the app is worth. SQLite in WAL mode handles this load easily and makes backup a single file copy. There's no build step, so updating means copying files and restarting.
 
-**No ORM.** The schema is four tables and the queries are short. Plain SQL in `logic.py` is easy to read and has no extra dependency.
+**No ORM.** The schema is small and the queries are short. Plain SQL in `logic.py` is easy to read and has no extra dependency.
 
 **Periods as keys, not resets.** There's no cron job that "un-ticks" tasks at midnight. Done-ness is derived from the current date, so the app is correct even if the Pi was off at midnight, and full history accumulates with no extra work.
 
@@ -353,13 +355,34 @@ powershell -ExecutionPolicy Bypass -File .\chores-main\deploy\windows\install.ps
 
 The first run asks for the three passwords. An update backs up the database and applies any schema changes first.
 
+**If an older update failed with `PermissionError` reading `C:\ProgramData\chores\chores.env`:** the old installer applied directory inheritance flags to files and could remove their effective access. The corrected installer repairs those permissions before stopping the app. To repair a copy already extracted to `%TEMP%\chores-main`, save `deploy/windows/repair-update.ps1` to Downloads on the affected PC and run this in Administrator PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Downloads\repair-update.ps1"
+```
+
+The standalone repair script corrects the old permission command in the extracted installer, keeps a `.before-acl-fix` copy, and retries the update. If you extracted elsewhere, add `-Installer "C:\path\to\chores\deploy\windows\install.ps1"`. It retains the existing settings and database.
+
 | | |
 |---|---|
 | Code | `C:\Program Files\chores` |
 | Database, keys, settings (`chores.env`) | `C:\ProgramData\chores` |
 | Logs | `C:\ProgramData\chores\logs` (`serve.log`, `notify.log`, `backup.log`) |
 | Backups | `C:\ProgramData\chores\backups` (the last 30 are kept) |
-| Scheduled tasks | Task Scheduler → `chores`: `serve`, `notify` (every minute), `backup` (3:30 am) |
+| Scheduled tasks | Task Scheduler → `chores`: `serve`, `notify` (every minute), `backup` (3:30 am), `update` (every 15 minutes) |
+| Updater log and rollback copies | `C:\Program Files\chores-update` (admins only) |
+
+**Automatic updates:** merge to `main` and the Pi installs it by itself. The `update` task checks GitHub every 15 minutes and installs the newest commit on `main` once that commit's tests have passed. The app is down for a minute or two while it does. If the install fails, the updater puts back the previous code and database and skips that commit until a newer one arrives.
+
+Its status is in `C:\Program Files\chores-update\update.log`, readable from an Administrator PowerShell:
+
+```powershell
+Get-Content "C:\Program Files\chores-update\update.log" -Tail 30
+```
+
+To retry a skipped commit, delete `failed.txt` in that folder. To pause updates, run `Disable-ScheduledTask -TaskPath \chores\ -TaskName update`, and `Enable-ScheduledTask` with the same options to resume.
+
+The task runs as SYSTEM, so anyone who can push to `main` can run code on the Pi. Keep two-factor login on for the GitHub account.
 
 **Restart** the app after changing `chores.env`:
 

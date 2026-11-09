@@ -96,6 +96,7 @@ def board(owners, d=None):
         if t["frequency"] == "once" and c and c["done_on"] != d.isoformat():
             continue
         out[t["frequency"]].append({"task": t, "done": c is not None, "completion": c,
+                                    "period_key": periods.period_key(t["frequency"], d),
                                     "last_on": last.get(t["id"]), "due": periods.due_info(t, now)})
     for f in out:   # undone first, then soonest due, then alphabetical-by-code
         out[f].sort(key=lambda r: (r["done"], r["due"]["date"] if r["due"] else date.max,
@@ -121,6 +122,44 @@ def dashboard(username, d=None):
     }
 
 
+def task_views(dash, d=None):
+    """Focused lists without changing the periods used to record completions."""
+    d = d or periods.today()
+    board_ = dash["board"]
+    week_end = periods.week_start(d) + timedelta(days=6)
+    month_end = periods.next_month(d) - timedelta(days=1)
+
+    def due_by(row, end):
+        due = periods.due_date(row["task"], d)
+        return due is not None and due <= end
+
+    views = {
+        "today": {"label": "Today", "hint": "Daily routines and deadlines that need your attention today.",
+                  "rows": board_["daily"] + [r for f in ("weekly", "monthly", "once")
+                                             for r in board_[f] if due_by(r, d)]},
+        "week": {"label": "This week", "hint": "Weekly tasks and other deadlines through "
+                 + week_end.strftime("%A") + ". Daily routines stay in Today.",
+                 "rows": board_["weekly"] + [r for f in ("monthly", "once")
+                                             for r in board_[f] if due_by(r, week_end)]},
+        "month": {"label": "This month", "hint": "Monthly tasks and one-off deadlines this month.",
+                  "rows": board_["monthly"] + [r for r in board_["once"] if due_by(r, month_end)]},
+        "once": {"label": "One-off", "hint": "Things to do once, including those without a due date.",
+                 "rows": board_["once"]},
+        "other": {"label": "As needed", "hint": "No fixed schedule. Record a task when you take care of it.",
+                  "rows": board_["other"]},
+    }
+    for view in views.values():
+        view["rows"] = [dict(r, due=periods.due_info(r["task"], datetime.combine(d, periods.now().time()), explicit_only=False))
+                        for r in view["rows"]]
+        view["rows"] = sorted(view["rows"], key=lambda r: (
+            r["done"], periods.due_date(r["task"], d) or date.max,
+            r["task"]["due_time"] or "", r["task"]["name"].casefold()))
+        view["progress"] = progress(view["rows"])
+        view["open"] = [r for r in view["rows"] if not r["done"]]
+        view["completed"] = [r for r in view["rows"] if r["done"]]
+    return views
+
+
 # ------------------------------------------------------------- crossing off ---
 
 def can_complete(user, task):
@@ -129,13 +168,22 @@ def can_complete(user, task):
     return task["owner"] in (user["username"], SHARED, VOLUNTEER) and task["active"]
 
 
-def toggle(user, task, d=None):
+def toggle(user, task, d=None, desired_done=None):
     """Cross off (or un-cross) a task for its current period. Returns the new state or raises PermissionError."""
     d = d or periods.today()
     db = get_db()
     key = periods.period_key(task["frequency"], d)
     existing = db.execute("SELECT * FROM completions WHERE task_id = ? AND period_key = ?",
                           (task["id"], key)).fetchone()
+    # Explicit state makes a repeated request safe after an interrupted connection.
+    if desired_done is True and existing:
+        if not can_complete(user, task):
+            raise PermissionError("That task belongs to someone else.")
+        return True
+    if desired_done is False and not existing:
+        if not can_complete(user, task):
+            raise PermissionError("That task belongs to someone else.")
+        return False
     if existing:
         if existing["user_id"] != user["id"] and user["role"] != "admin":
             raise PermissionError("Only the person who crossed this off can undo it.")

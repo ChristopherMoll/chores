@@ -9,7 +9,7 @@ from flask import (Blueprint, Response, abort, flash, g, redirect, render_templa
                    url_for)
 
 from . import logic, periods
-from .auth import login_required
+from .auth import login_required, safe_next
 from .db import get_db
 
 bp = Blueprint("manage", __name__, url_prefix="/manage")
@@ -88,7 +88,11 @@ def tasks():
     ).fetchall()
     return render_template("manage/tasks.html", rows=rows, f=f, groups=GROUPS,
                            owners=logic.owner_choices(), freqs=periods.FREQUENCIES,
-                           summary={r["owner"]: r for r in summary})
+                           summary={r["owner"]: r for r in summary}, members=logic.members(),
+                           loads={m["username"]: logic.load_hours(m["username"]) for m in logic.members()},
+                           missing_estimates=get_db().execute(
+                               "SELECT COUNT(*) FROM tasks WHERE active=1 AND frequency!='once' AND hours_month IS NULL"
+                           ).fetchone()[0])
 
 
 @bp.post("/tasks/bulk")
@@ -173,7 +177,8 @@ def task_new():
                        [data[k] for k in FIELDS])
             db.commit()
             flash(f"Added {data['name']}.", "ok")
-            return redirect(url_for("manage.tasks"))
+            return redirect(safe_next(request.form.get("back", "")) if request.form.get("back")
+                            else url_for("manage.tasks"))
         for e in errs:
             flash(e, "error")
         task = data
@@ -183,7 +188,8 @@ def task_new():
                 "frequency": "weekly", "owner": logic.VOLUNTEER, "hours_month": None, "notes": "", "active": 1,
                 **dict.fromkeys(DUE_FIELDS)}
     return render_template("manage/task_form.html", task=task, new=True, groups=GROUPS, weekdays=periods.WEEKDAYS,
-                           owners=logic.owner_choices(), freqs=periods.FREQUENCIES)
+                           owners=logic.owner_choices(), freqs=periods.FREQUENCIES,
+                           back_url=safe_next(request.form.get("back") or request.args.get("back") or url_for("manage.tasks")))
 
 
 @bp.route("/tasks/<int:task_id>", methods=["GET", "POST"])
@@ -200,13 +206,15 @@ def task_edit(task_id):
                        " WHERE id = ?", [data[k] for k in FIELDS] + [task_id])
             db.commit()
             flash(f"Saved {data['name']}.", "ok")
-            return redirect(url_for("manage.tasks"))
+            return redirect(safe_next(request.form.get("back", "")) if request.form.get("back")
+                            else url_for("manage.tasks"))
         for e in errs:
             flash(e, "error")
         task = dict(data, id=task_id)
     n = db.execute("SELECT COUNT(*) FROM completions WHERE task_id = ?", (task_id,)).fetchone()[0]
     return render_template("manage/task_form.html", task=task, new=False, groups=GROUPS, completions=n,
-                           weekdays=periods.WEEKDAYS, owners=logic.owner_choices(), freqs=periods.FREQUENCIES)
+                           weekdays=periods.WEEKDAYS, owners=logic.owner_choices(), freqs=periods.FREQUENCIES,
+                           back_url=safe_next(request.form.get("back") or request.args.get("back") or url_for("manage.tasks")))
 
 
 @bp.post("/tasks/<int:task_id>/delete")
@@ -237,7 +245,7 @@ def export_csv():
                     t["due_date"] or "", periods.WEEKDAYS[t["due_weekday"]] if t["due_weekday"] is not None else "",
                     t["due_monthday"] or "", t["due_time"] or ""])
     return Response(buf.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment; filename=chores-tasks.csv"})
+                    headers={"Content-Disposition": "attachment; filename=molechores-tasks.csv"})
 
 
 def _import_due(task, row, new_freq):

@@ -1,41 +1,19 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
+{% from '_macros.html' import icon with context %}
 {% block title %}{{ 'New task' if new else task.name }}{% endblock %}
 {% block content %}
-<p><a href="{{ url_for('manage.tasks') }}" class="small">← All tasks</a></p>
-<h1>{{ 'New task' if new else 'Edit ' ~ task.name }}</h1>
-<form method="post" class="card form">
-  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-  <div class="row">
-    <label class="w-code">Code <input name="code" value="{{ task.code }}" required maxlength="8"></label>
-    <label class="grow">Name <input name="name" value="{{ task.name }}" required maxlength="80"></label>
-  </div>
-  <div class="row">
-    <label>Group <select name="grp">{% for gname in groups %}<option {{ 'selected' if task.grp == gname }}>{{ gname }}</option>{% endfor %}</select></label>
-    <label>Frequency <select name="frequency" data-due-switch>{% for fr in freqs %}<option value="{{ fr }}" {{ 'selected' if task.frequency == fr }}>{{ fr|capitalize }}</option>{% endfor %}</select></label>
-    <label>Owner <select name="owner">{% for v, l in owners %}<option value="{{ v }}" {{ 'selected' if task.owner == v }}>{{ l }}</option>{% endfor %}</select></label>
-    <label class="w-hours">Hours / month <input name="hours_month" value="{{ '' if task.hours_month is none else task.hours_month|hours }}" inputmode="decimal"></label>
-  </div>
-  <div class="row due-row">
-    <label data-due-for="once">Due date (one-off) <input name="due_date" type="date" value="{{ task.due_date or '' }}"></label>
-    <label data-due-for="weekly">Due every (weekly) <select name="due_weekday"><option value="">End of the week</option>{% for w in weekdays %}<option value="{{ loop.index0 }}" {{ 'selected' if task.due_weekday == loop.index0 }}>{{ w }}</option>{% endfor %}</select></label>
-    <label data-due-for="monthly">Due on day (monthly) <select name="due_monthday"><option value="">End of the month</option>{% for n in range(1, 32) %}<option value="{{ n }}" {{ 'selected' if task.due_monthday == n }}>{{ n }}</option>{% endfor %}</select></label>
-    <label data-due-for="daily">Due by (daily) <input name="due_time" type="time" value="{{ task.due_time or '' }}"></label>
-  </div>
-  <p class="small muted" data-due-for="monthly">Months without that day use their last day.</p>
-  <p class="small muted" data-due-for="once">For a one-off, enter the total hours in Hours / month. They count toward points but not monthly load.</p>
-  <label>What it covers <textarea name="description" rows="4">{{ task.description }}</textarea></label>
-  <label>Our standard (notes) <textarea name="notes" rows="3" placeholder="How often, how well, by when: what you've agreed counts as done.">{{ task.notes }}</textarea></label>
-  <label class="check"><input type="checkbox" name="active" {{ 'checked' if task.active }}> Active (shows on dashboards)</label>
-  <div class="form-actions">
-    <button class="btn primary">{{ 'Add task' if new else 'Save' }}</button>
-    <a href="{{ url_for('manage.tasks') }}" class="btn">Cancel</a>
-  </div>
+<p><a href="{{ back_url }}" class="text-action">{{ icon('arrow') }} Back to tasks</a></p>
+<div data-editor-content>
+<div class="page-title"><p class="eyebrow">{{ 'A little addition' if new else 'Task details' }}</p><h1>{{ 'Make it part of the rhythm.' if new else task.name }}</h1></div>
+<form method="post" action="{{ url_for('manage.task_new') if new else url_for('manage.task_edit', task_id=task.id) }}" class="card form task-edit-form" data-track-changes>
+<input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="back" value="{{ back_url }}">
+<fieldset><legend>What is it?</legend><label>Task name <input name="name" value="{{ task.name }}" required maxlength="80" autocomplete="off"></label><label>What it covers <textarea name="description" rows="3">{{ task.description }}</textarea></label><label>What done looks like <textarea name="notes" rows="3" placeholder="The details you've agreed on: how often, how well, by when.">{{ task.notes }}</textarea></label></fieldset>
+<fieldset><legend>Find its rhythm.</legend><div class="row"><label>Who owns this? <select name="owner">{% for value,label in owners %}<option value="{{ value }}" {{ 'selected' if task.owner == value }}>{{ label }}</option>{% endfor %}</select></label><label>Repeats <select name="frequency" data-due-switch>{% for fr in freqs %}<option value="{{ fr }}" {{ 'selected' if task.frequency == fr }}>{{ {'other':'As needed','once':'One-off'}.get(fr, fr|capitalize) }}</option>{% endfor %}</select></label></div>
+<div class="due-row"><label data-due-for="once">Due date <input name="due_date" type="date" value="{{ task.due_date or '' }}"></label><label data-due-for="weekly">Due each <select name="due_weekday"><option value="">End of the week</option>{% for day in weekdays %}<option value="{{ loop.index0 }}" {{ 'selected' if task.due_weekday == loop.index0 }}>{{ day }}</option>{% endfor %}</select></label><label data-due-for="monthly">Due on day <select name="due_monthday"><option value="">End of the month</option>{% for n in range(1,32) %}<option value="{{ n }}" {{ 'selected' if task.due_monthday == n }}>{{ n }}</option>{% endfor %}</select></label><label data-due-for="daily">Due by <input name="due_time" type="time" value="{{ task.due_time or '' }}"></label></div><p class="small muted" data-due-for="monthly">Months without that day use their last day.</p>
+<label><span data-hours-label>Estimated {{ 'total hours' if task.frequency == 'once' else 'hours per month' }}</span><input name="hours_month" type="number" min="0" max="744" step="0.01" value="{{ '' if task.hours_month is none else task.hours_month|hours }}" inputmode="decimal"></label><p class="small muted" data-due-for="once">For one-off tasks, enter total hours. These count toward points, and are excluded from monthly workload.</p><label class="check"><input type="checkbox" name="active" {{ 'checked' if task.active }}> Include in task lists</label></fieldset>
+<details class="fold additional-details"><summary>Additional details</summary><div class="row"><label>Group <select name="grp">{% for group in groups %}<option {{ 'selected' if task.grp == group }}>{{ group }}</option>{% endfor %}</select></label><label>Task code <input name="code" value="{{ task.code }}" required maxlength="8"></label></div></details>
+<div class="form-actions"><button class="btn primary">{{ 'Add task' if new else 'Save task' }}</button><a href="{{ back_url }}" class="btn" data-cancel-editor>Cancel</a></div>
 </form>
-{% if not new %}
-<form method="post" action="{{ url_for('manage.task_delete', task_id=task.id) }}" class="danger-zone">
-  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-  <p class="muted small">Deleting removes the task and its {{ completions }} cross-off{{ 's' if completions != 1 }} for good. To retire a task but keep its history, untick Active instead.</p>
-  <button class="btn danger" data-confirm="Delete {{ task.name }} and its history?">Delete task</button>
-</form>
-{% endif %}
+{% if not new %}<details class="danger-zone fold"><summary>Retire or delete this task</summary><p class="muted small">Uncheck Include in task lists and save to archive it with its history. Deleting permanently removes this task and its {{ completions }} completion{{ 's' if completions != 1 }}.</p><form method="post" action="{{ url_for('manage.task_delete', task_id=task.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn danger" data-confirm="Permanently delete {{ task.name }} and its history?">Delete task permanently</button></form></details>{% endif %}
+</div>
 {% endblock %}

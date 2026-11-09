@@ -121,7 +121,8 @@ def test_install_script_is_executable():
 
 def test_windows_installer_is_ascii():
     """Windows PowerShell 5.1 misreads non-ASCII characters in a file without a BOM."""
-    (ROOT / "deploy" / "windows" / "install.ps1").read_bytes().decode("ascii")
+    for name in ("install.ps1", "update.ps1", "repair-update.ps1"):
+        (ROOT / "deploy" / "windows" / name).read_bytes().decode("ascii")
 
 
 def test_env_file_loading(tmp_path, monkeypatch):
@@ -363,7 +364,7 @@ def test_run_due_sends_once(app, sent):
         subscribe("chris")
         assert reminders.run_due(FIRE) == 1
         payload = sent.call_args.args[1]
-        assert payload["url"] == f"/#task-{task['id']}" and task["name"] in payload["title"]
+        assert payload["url"] == f"/tasks/{task['id']}" and task["name"] in payload["title"]
         assert payload["body"] == "Not done yet. Due tomorrow."
         assert reminders.run_due(FIRE.replace(minute=1)) == 0
         assert sent.call_count == 1
@@ -470,7 +471,7 @@ def test_reminder_page_add_and_remove(app):
     assert b"already have" in r.data
     with app.app_context():
         set_task("H03", owner="chris")
-    assert "You have a reminder on this" in c.get("/").get_data(as_text=True)
+    assert "You have a reminder on this" in c.get("/?view=once").get_data(as_text=True)
     with app.app_context():
         rid = db.get_db().execute("SELECT id FROM reminders").fetchone()["id"]
     a = app.test_client()
@@ -539,12 +540,41 @@ def test_home_screen_icons_exist(app):
     assert r.status_code == 200 and r.data.startswith(b"\x89PNG")
 
 
-def test_dashboard_offers_notifications_only_on_your_own_page(app):
+def test_every_mascot_pose_used_in_a_template_exists():
+    used = {"default", "reminder", "celebrate", "award", "question", "suggestion"}
+    for path in (ROOT / "chores" / "templates").rglob("*.html"):
+        used |= set(re.findall(r"mole\('(\w+)'", path.read_text(encoding="utf-8")))
+    for pose in used:
+        assert (ROOT / "chores" / "static" / "mascot" / "small" / f"{pose}.png").is_file()
+
+
+def test_app_is_branded_molechores(app):
+    c = app.test_client()
+    assert "<h1>MoleChores</h1>" in c.get("/login").get_data(as_text=True)
+    assert json.loads(c.get("/static/manifest.webmanifest").data)["name"] == "MoleChores"
+
+
+def test_dashboard_mascot_follows_the_days_progress(app):
+    c = app.test_client()
+    t = login(c, "chris")
+
+    def pose():
+        page = c.get("/").get_data(as_text=True)
+        return re.search(r'id="hero-mole" src="[^"]*/mascot/small/(\w+)\.png', page).group(1)
+
+    assert pose() == "default"
+    for code in ("H02", "H05"):              # Chris's two daily tasks in the fixture
+        c.post(f"/tasks/{task_id(app, code)}/toggle", headers={**JSON_HEADERS, "X-CSRF-Token": t})
+    assert pose() == "celebrate"
+
+
+def test_notifications_are_in_settings_and_not_on_task_dashboards(app):
     c = app.test_client()
     login(c, "chris")
-    page = c.get("/").get_data(as_text=True)
+    page = c.get("/more").get_data(as_text=True)
     key = re.search(r'data-vapid="([^"]+)"', page).group(1)
     assert len(base64.urlsafe_b64decode(key + "==")) == 65       # uncompressed P-256 point
+    assert "push-card" not in c.get("/").get_data(as_text=True)
     assert "push-card" not in c.get("/people/andrea").get_data(as_text=True)
 
 
@@ -669,5 +699,5 @@ def test_new_pages_render(app):
     with app.app_context():
         tid = set_task("H03", frequency="weekly", due_weekday=2)["id"]
     page = login_client.get("/manage/tasks").get_data(as_text=True)
-    assert "⏱ Wed" in page
+    assert "Due Wed" in page
     assert login_client.get(f"/manage/tasks/{tid}").status_code == 200

@@ -18,6 +18,27 @@ function Assert-Ok($what) {
     if ($LASTEXITCODE -ne 0) { throw "$what failed (exit code $LASTEXITCODE)." }
 }
 
+function Set-DataPermissions {
+    # First give files and directories usable permissions. (OI)(CI) are directory
+    # flags: using them with /grant:r /T removes existing file grants without
+    # replacing them, leaving chores.env and the database unreadable.
+    $direct = @("*S-1-5-18:F", "*S-1-5-32-544:F", "*S-1-5-19:M")
+    $inheritable = @("*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F", "*S-1-5-19:(OI)(CI)M")
+    & icacls.exe $Data /inheritance:r /grant:r @direct /T /Q | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        # Files created by LOCAL SERVICE may already have lost every grant.
+        # Recover ownership only inside the app's data directory, then retry.
+        Write-Host "Repairing ownership of the chores data files."
+        & takeown.exe /F $Data /A /R /D Y | Out-Null
+        Assert-Ok "Recovering ownership of $Data"
+        & icacls.exe $Data /inheritance:r /grant:r @direct /T /Q | Out-Null
+        Assert-Ok "Repairing file permissions in $Data"
+    }
+    # Add inheritance without :r so the effective file grants above stay intact.
+    & icacls.exe $Data /grant @inheritable /T /Q | Out-Null
+    Assert-Ok "Setting inherited permissions in $Data"
+}
+
 # Find Python. It has to be an all-users install, because the app runs as LOCAL SERVICE
 # and can't read anything under a person's AppData folder.
 $BasePython = Get-ChildItem (Join-Path $env:ProgramFiles "Python3*\python.exe") -ErrorAction SilentlyContinue |
@@ -31,8 +52,13 @@ $BasePython = $BasePython.FullName
 Assert-Ok "The Python 3.11+ check for $BasePython"
 Write-Host "Using $BasePython"
 
+# Repair access before stopping the running app or replacing any code.
+New-Item -ItemType Directory -Force -Path $Data, $Logs, $Backups | Out-Null
+Set-DataPermissions
+
 # Stop anything already running so the code and virtualenv can be replaced.
-$existing = Get-ScheduledTask -TaskPath $TaskPath -ErrorAction SilentlyContinue
+# Not the update task: update.ps1 runs this script, and stopping it would end the update halfway.
+$existing = Get-ScheduledTask -TaskPath $TaskPath -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -ne "update" }
 foreach ($task in $existing) {
     $task | Disable-ScheduledTask | Out-Null
     $task | Stop-ScheduledTask
@@ -46,8 +72,8 @@ $global:LASTEXITCODE = 0
 $Python = Join-Path $App ".venv\Scripts\python.exe"
 & $BasePython -m venv (Join-Path $App ".venv")
 Assert-Ok "Creating the virtualenv"
+# Not fatal: a rollback has to work even if PyPI is what broke the update.
 & $Python -m pip install -q --upgrade pip
-Assert-Ok "Upgrading pip"
 # --prefer-binary: on ARM64 the newest cryptography can lag behind on prebuilt wheels,
 # and building it from source needs a Rust and C compiler toolchain.
 & $Python -m pip install -q --prefer-binary -r (Join-Path $App "requirements.txt")
@@ -55,11 +81,6 @@ Assert-Ok "Installing dependencies"
 # LOCAL SERVICE can't write bytecode here, so compile it now to keep the every-minute run fast.
 & $Python -m compileall -q (Join-Path $App "chores")
 Assert-Ok "Compiling the app"
-
-# Data folder: only SYSTEM, Administrators and the app's own account can get in.
-New-Item -ItemType Directory -Force -Path $Data, $Logs, $Backups | Out-Null
-icacls $Data /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-19:(OI)(CI)M" /T /Q | Out-Null
-Assert-Ok "Setting folder permissions"
 
 if (-not (Test-Path $EnvFile)) {
     $lines = (Get-Content (Join-Path $App "deploy\chores.env.example")) -replace '^CHORES_INSTANCE=.*', "CHORES_INSTANCE=$Data"
@@ -105,6 +126,21 @@ Register-ChoresTask "notify" "notify" @(
 Register-ChoresTask "backup" "backup `"$Backups`" --keep 30" @(
     (New-ScheduledTaskTrigger -Daily -At "3:30AM")
 ) (New-TimeSpan -Hours 1)
+
+# Automatic updates. This one needs SYSTEM, because it replaces the code and the scheduled tasks.
+# Left alone while it's running, since then it's the one that started this install.
+$updater = Get-ScheduledTask -TaskPath $TaskPath -TaskName "update" -ErrorAction SilentlyContinue
+if (-not $updater -or $updater.State -ne "Running") {
+    $systemAccount = ([Security.Principal.SecurityIdentifier]"S-1-5-18").Translate([Security.Principal.NTAccount]).Value
+    $updateScript = Join-Path $App "deploy\windows\update.ps1"
+    Register-ScheduledTask -TaskPath $TaskPath -TaskName "update" `
+        -Action (New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$updateScript`"") `
+        -Trigger (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 15)) `
+        -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
+            -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 1)) `
+        -Principal (New-ScheduledTaskPrincipal -UserId $systemAccount -LogonType ServiceAccount -RunLevel Highest) `
+        -Force | Out-Null
+}
 
 Start-ScheduledTask -TaskPath $TaskPath -TaskName "serve"
 

@@ -1,94 +1,16 @@
-{% extends "base.html" %}
-{% from "_macros.html" import bar with context %}
-{% block title %}Scoreboard{% endblock %}
+{% extends 'base.html' %}
+{% from '_macros.html' import bar, mole, icon with context %}
+{% block title %}Together{% endblock %}
+{% block main_class %}wrap wide{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
-    <h1>Scoreboard</h1>
-    <p class="muted">{{ start|datefmt('%b %-d') }} – {{ last|datefmt('%b %-d') }}</p>
-  </div>
-  <div class="seg">
-    <a href="?range=week" class="{{ 'on' if rng == 'week' }}">This week</a>
-    <a href="?range=month" class="{{ 'on' if rng == 'month' }}">This month</a>
-  </div>
-</div>
-
-{% if players|length == 2 %}
-{% set a, b = players[0], players[1] %}
-{% set tot = a.stats.points + b.stats.points %}
-<section class="card versus">
-  <div class="vs-names">
-    <span class="vs-name" data-color="{{ a.user.color }}">{{ a.user.display_name }} <b>{{ a.stats.points }}</b></span>
-    <span class="vs-mid">{% if leader %}{{ leader.user.display_name }} leads{% elif tie %}Dead even{% else %}No points yet{% endif %}</span>
-    <span class="vs-name right" data-color="{{ b.user.color }}"><b>{{ b.stats.points }}</b> {{ b.user.display_name }}</span>
-  </div>
-  <div class="vs-bar">
-    <span class="vs-a" data-color="{{ a.user.color }}" data-pct="{{ (100 * a.stats.points / tot)|round|int if tot else 50 }}"></span>
-    <span class="vs-b" data-color="{{ b.user.color }}"></span>
-  </div>
-  <p class="muted small center">Points ≈ 1 per 5 minutes of estimated effort. Volunteer pickups earn 50% extra.
-    {% if volunteer_open %}<a href="{{ url_for('main.home') }}">{{ volunteer_open }} task{{ 's' if volunteer_open != 1 }} up for grabs</a>.{% endif %}</p>
-</section>
-{% endif %}
-
+<div class="page-head"><div><p class="eyebrow">One home. Both of you.</p><h1>A home, cared for.</h1><p class="muted">Every little thing you take care of makes a difference.</p></div>{{ mole('default', 'lg') }}</div>
+<div class="section-heading"><div><h2>A little effort adds up.</h2><p class="muted small">{{ start|datefmt('%b %-d') }} – {{ last|datefmt('%b %-d') }}</p></div><nav class="seg" aria-label="Household progress period"><a href="?range=week" class="{{ 'on' if rng == 'week' }}" {{ 'aria-current=page' if rng == 'week' }}>This week</a><a href="?range=month" class="{{ 'on' if rng == 'month' }}" {{ 'aria-current=page' if rng == 'month' }}>This month</a></nav></div>
+<div id="household-summary"><div class="progress-stats household-stats"><div><b>{{ household.count }}</b><span>tasks taken care of</span></div><div><b>{{ household.points }}</b><span>points together</span></div><div><b>{{ household.volunteer }}</b><span>extra helping hands</span></div></div>
 <div class="players">
-{% for pl in players %}
-  <section class="card player{{ ' leading' if leader and leader.user.id == pl.user.id }}" data-color="{{ pl.user.color }}">
-    <header>
-      <span class="avatar big" data-color="{{ pl.user.color }}">{{ pl.user.display_name[0] }}</span>
-      <div>
-        <h2>{{ pl.user.display_name }}{% if leader and leader.user.id == pl.user.id %} <span class="crown" title="In the lead">👑</span>{% endif %}</h2>
-        <a class="small" href="{{ url_for('main.person', username=pl.user.username) }}">See every task →</a>
-      </div>
-    </header>
-
-    <div class="kpis">
-      <div><b>{{ pl.stats.points }}</b><span>points</span></div>
-      <div><b>{{ pl.stats.count }}</b><span>crossed off</span></div>
-      <div><b>{{ pl.streak }}</b><span>day streak</span></div>
-      <div><b>{{ pl.stats.volunteer }}</b><span>volunteered</span></div>
-    </div>
-
-    <div class="spark" aria-label="Points per day">
-      {% for v in pl.spark %}<span data-h="{{ (100 * v / spark_max)|round|int }}" title="{{ v }} pts"></span>{% endfor %}
-    </div>
-
-    <h3>Right now</h3>
-    {% for f in ('daily', 'weekly', 'monthly') %}
-      {% set pr = pl.dash.progress[f] %}
-      <div class="mini-row">
-        <span>{{ FREQ_LABELS[f] }}</span>
-        {{ bar(pr, 'thin') }}
-        <span class="muted small">{{ pr.done }}/{{ pr.total }}</span>
-      </div>
-    {% endfor %}
-
-    <h3>Assigned load</h3>
-    <p class="load"><b>{{ pl.load.total|hours }}</b> h/month <span class="muted small">({{ pl.load.own|hours }} own + {{ pl.load.shared_half|hours }} half of shared, {{ pl.load.tasks }} solo tasks)</span></p>
-
-    <ul class="badges compact">
-      {% for bd in pl.badges if bd.earned %}<li class="badge earned" title="{{ bd.how }}"><span class="emoji">{{ bd.emoji }}</span><span>{{ bd.title }}</span></li>
-      {% else %}<li class="muted small">No badges yet. Finish today's list to earn one.</li>{% endfor %}
-    </ul>
-  </section>
-{% endfor %}
+{% for pl in players %}<section class="card player" data-color="{{ pl.user.color }}"><header><span class="avatar big" data-color="{{ pl.user.color }}">{{ pl.user.display_name[0] }}</span><div><h2>{{ pl.user.display_name }}</h2><a class="small" href="{{ url_for('main.person', username=pl.user.username) }}">See tasks {{ icon('chevron') }}</a></div></header><div class="contribution"><strong>{{ pl.stats.count }} taken care of</strong><span class="muted small">{{ pl.stats.points }} points · {{ pl.stats.volunteer }} volunteered</span></div>{% for f in ('daily','weekly','monthly') %}{% set pr = pl.dash.progress[f] %}<div class="mini-row"><span>{{ FREQ_LABELS[f] }}</span>{{ bar(pr, 'thin', pl.user.display_name ~ ' ' ~ FREQ_LABELS[f]) }}<span class="muted small">{{ pr.done }}/{{ pr.total }}</span></div>{% endfor %}<div class="assigned-load"><span class="muted small">Estimated assigned effort</span><p><b>{{ pl.load.total|hours }}</b> h/month</p><span class="muted small">{{ pl.load.own|hours }} own + {{ pl.load.shared_half|hours }} half of shared</span></div></section>{% endfor %}
 </div>
-
-<section class="card">
-  <h2>Household feed</h2>
-  {% if activity %}
-  <ul class="feed">{% for a in activity %}
-    <li>
-      <span class="dot" data-color="{{ a.doer_color }}"></span>
-      <span class="feed-date">{{ a.done_on }}</span>
-      <b>{{ a.doer }}</b> did {{ a.task_name }}
-      <span class="muted">· {{ a.points }} pts{{ ' · volunteered 🙋' if a.owner_at == 'volunteer' }}</span>
-      {% if g.user.role == 'admin' %}
-      <form method="post" action="{{ url_for('admin.completion_delete', cid=a.id) }}" class="inline">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="linklike small" data-confirm="Remove this entry?">remove</button>
-      </form>{% endif %}
-    </li>
-  {% endfor %}</ul>
-  {% else %}<p class="muted">Nothing yet. The first cross-off starts the feed.</p>{% endif %}
-</section>
+</div><p class="context-note">Shared tasks count once in household totals. Hours are estimates, with shared work split equally. They help you plan a fair arrangement; they don't tell the whole story. <a href="{{ url_for('manage.tasks') }}">Review assignments</a></p>
+<details class="card fold"><summary>For a little friendly competition</summary><p class="muted small">Points recognise estimated effort. Volunteer tasks earn 50% extra.</p><div class="competition-list">{% for pl in players|sort(attribute='stats.points', reverse=true) %}<div><span>{{ pl.user.display_name }}</span><strong>{{ pl.stats.points }} points</strong></div>{% endfor %}</div></details>
+<details class="volunteer-disclosure" id="volunteer-section"><summary>{{ icon('heart') }} A little extra help <span class="pill">{{ volunteer_open }} scheduled tasks open</span></summary><div id="volunteer-region">{% include '_volunteers.html' %}</div></details>
+<section class="card" id="household-feed"><h2>Recently, around the house.</h2>{% if activity %}<ul class="feed">{% for a in activity %}<li><span class="dot" data-color="{{ a.doer_color }}"></span><span class="feed-date">{{ a.done_on }}</span><span><strong>{{ a.doer }}</strong> took care of {{ a.task_name }}</span><span class="muted small">{{ a.points }} pts{{ ' · volunteered' if a.owner_at == 'volunteer' }}</span>{% if g.user.role == 'admin' %}<form method="post" action="{{ url_for('admin.completion_delete', cid=a.id) }}" class="inline"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="linklike small" data-confirm="Remove this entry?">Remove</button></form>{% endif %}</li>{% endfor %}</ul>{% else %}<div class="empty-state">{{ mole('question') }}<p>Your household's efforts will show up here. Start with one little thing.</p></div>{% endif %}</section>
 {% endblock %}

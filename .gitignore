@@ -78,6 +78,7 @@ ehthumbs.db
 Desktop.ini
 
 # Logs / scratch
+/output/
 *.log
 *.tmp
 *.swp

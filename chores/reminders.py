@@ -124,7 +124,7 @@ def _is_done(task, d):
 def _payload(task, now):
     info = periods.due_info(task, now, explicit_only=False)
     return {"title": f"⏰ {task['name']}", "body": f"Not done yet. {info['label']}.",
-            "url": f"/#task-{task['id']}", "tag": f"task-{task['id']}"}
+            "url": f"/tasks/{task['id']}", "tag": f"task-{task['id']}"}
 
 
 def run_due(now=None):

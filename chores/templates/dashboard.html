@@ -1,120 +1,26 @@
 {% extends "base.html" %}
-{% from "_macros.html" import task_row, bar with context %}
-{% block title %}{{ 'My tasks' if own else who.display_name }}{% endblock %}
+{% from "_macros.html" import mole, icon with context %}
+{% block title %}{{ 'My tasks' if own else who.display_name ~ "'s tasks" }}{% endblock %}
 {% block content %}
-{% set p = dash.progress %}
-<section class="hero" data-color="{{ who.color }}">
-  <div>
-    <p class="eyebrow">{{ today|datefmt('%A, %B %-d') }}</p>
-    <h1>{% if own %}Hi, {{ who.display_name }}{% else %}{{ who.display_name }}'s progress{% endif %}</h1>
-    {% set left = p.daily.total - p.daily.done %}
-    <p class="lede">
-      {% if p.daily.total == 0 %}No daily tasks dealt {{ 'to you' if own else 'yet' }}.
-      {% elif left == 0 %}Everything for today is done. 🎉
-      {% else %}{{ left }} of {{ p.daily.total }} daily task{{ 's' if p.daily.total != 1 }} left today.{% endif %}
-    </p>
-    {% if not own %}
-    <p class="switch">{% for m in members if m.id != who.id %}<a href="{{ url_for('main.person', username=m.username) }}">See {{ m.display_name }} →</a>{% endfor %}</p>
-    {% endif %}
-  </div>
-  <div class="hero-stats">
-    <div class="stat"><b>{{ streak }}</b><span>day streak{{ ' 🔥' if streak >= 3 }}</span></div>
-    <div class="stat"><b>{{ week.points }}</b><span>pts this week</span></div>
-    <div class="stat"><b>{{ badges|selectattr('earned')|list|length }}</b><span>badges</span></div>
-  </div>
-</section>
-
-{% if own %}{% for m in members if m.id != who.id %}
-  <p class="peek"><a href="{{ url_for('main.person', username=m.username) }}">How's {{ m.display_name }} doing? →</a></p>
-{% endfor %}{% endif %}
-
-{% if own %}
-<section class="card push-card" id="push-card" data-vapid="{{ vapid_public }}" hidden>
-  <div>
-    <h2>Notifications</h2>
-    <p class="muted small" id="push-status"></p>
-  </div>
-  <div class="actions">
-    <button type="button" class="btn primary" id="push-on" hidden>Enable notifications</button>
-    <button type="button" class="btn" id="push-test" hidden>Send a test</button>
-    <button type="button" class="btn" id="push-off" hidden>Turn off</button>
-  </div>
-</section>
-{% endif %}
-
-<div class="periods">
-{% for f in ('daily', 'weekly', 'monthly') %}
-  {% set rows = dash.board[f] %}
-  <section class="card period" data-period="{{ f }}">
-    <header>
-      <h2>{{ FREQ_LABELS[f] }}</h2>
-      <span class="count"><b class="n-done">{{ p[f].done }}</b>/<span class="n-total">{{ p[f].total }}</span></span>
-    </header>
-    {{ bar(p[f]) }}
-    {% if f != 'daily' %}<p class="muted small resets">Resets in {{ days_left[f] }} day{{ 's' if days_left[f] != 1 }}</p>{% endif %}
-    {% if rows %}
-      <ul class="tasks">{% for r in rows %}{{ task_row(r, own, g.user) }}{% endfor %}</ul>
-    {% else %}
-      <p class="empty muted">Nothing here yet. <a href="{{ url_for('manage.tasks') }}">Deal some tasks</a>.</p>
-    {% endif %}
+{% set today_progress = task_views.today.progress %}
+<div class="dashboard" data-view="{{ selected }}" data-own="{{ 'true' if own else 'false' }}">
+  <section class="hero">
+    <div class="hero-copy"><p class="eyebrow">{{ today|datefmt('%A, %B %-d') }}</p><h1>{{ 'Hi, ' ~ who.display_name ~ '.' if own else who.display_name ~ "'s tasks" }}</h1><p class="lede" id="hero-lede">{% if today_progress.total and today_progress.done == today_progress.total %}Today's list is taken care of.{% elif today_progress.total %}A little at a time.{% else %}A little breathing room today.{% endif %}</p></div>
+    <img class="mole hero-mole" id="hero-mole" src="{{ url_for('static', filename='mascot/small/' ~ ('celebrate' if today_progress.total and today_progress.done == today_progress.total else 'default') ~ '.png') }}" alt="" width="112" height="112" data-working="{{ url_for('static', filename='mascot/small/default.png') }}" data-all-done="{{ url_for('static', filename='mascot/small/celebrate.png') }}">
   </section>
-{% endfor %}
+  {% if not own %}<p class="viewing-note">You're viewing {{ who.display_name }}'s list. <a href="{{ url_for('main.home') }}">Back to my tasks</a></p>{% endif %}
+  <nav class="period-tabs" aria-label="Task period">
+    {% for key in ('today','week','month') %}<a href="{{ request.path }}?view={{ key }}" class="{{ 'on' if selected == key }}" {{ 'aria-current=page' if selected == key }}>{{ task_views[key].label }}<span class="tab-count" data-view-count="{{ key }}">{{ task_views[key].open|length }}</span></a>{% endfor %}
+  </nav>
+  <div class="task-workspace">
+    <div id="tasks-region">{% include '_task_list.html' %}</div>
+    <aside class="task-sidebar">
+      <div class="look-ahead"><p class="eyebrow">A little planning</p><h2>Room for the rest.</h2><p class="muted small">Your other lists are here whenever you're ready.</p>
+        {% for key in ('week','month','once','other') %}<a href="{{ request.path }}?view={{ key }}" class="look-ahead-link {{ 'on' if selected == key }}"><span>{{ task_views[key].label }}</span><span><b data-view-count="{{ key }}">{{ task_views[key].open|length }}</b> open {{ icon('chevron') }}</span></a>{% endfor %}
+      </div>
+      {% if own %}<a class="together-note" href="{{ url_for('main.compare') }}">{{ icon('heart') }}<span><strong>We're in this together.</strong><span>See shared work &amp; ways to help</span></span>{{ icon('chevron') }}</a>{% endif %}
+    </aside>
+  </div>
+  {% if own %}<div class="install-nudge" data-install-nudge hidden><div><strong>A little closer to home.</strong><p>Add MoleChores to your Home Screen for quick access and optional reminders.</p><a href="{{ url_for('main.more') }}#install-help">Show me how</a></div><button type="button" class="icon-button" data-dismiss-install aria-label="Dismiss installation suggestion">×</button></div>{% endif %}
 </div>
-
-{% if dash.board.once %}
-<section class="card">
-  <header><h2>One-off</h2></header>
-  <ul class="tasks">{% for r in dash.board.once %}{{ task_row(r, own, g.user) }}{% endfor %}</ul>
-</section>
-{% endif %}
-
-{% set grab_rows = dash.grabs.daily + dash.grabs.weekly + dash.grabs.monthly + dash.grabs.once %}
-{% if grab_rows %}
-<section class="card grabs">
-  <header>
-    <h2>Up for grabs <span class="pill">{{ dash.grabs_open }} open</span></h2>
-    <p class="muted small">Needs Volunteer tasks. Either of you can take one, and you get 50% bonus points for it.</p>
-  </header>
-  <ul class="tasks">{% for r in grab_rows %}{{ task_row(r, own, g.user, 'grab') }}{% endfor %}</ul>
-</section>
-{% endif %}
-
-{% set other_rows = dash.board.other + dash.grabs.other %}
-{% if other_rows %}
-<section class="card">
-  <details class="fold">
-    <summary><h2>As needed <span class="pill">{{ other_rows|length }}</span></h2>
-      <span class="muted small">No schedule. Log one when you do it.</span></summary>
-    <ul class="tasks">{% for r in other_rows|sort(attribute='task.name') %}{{ task_row(r, own, g.user) }}{% endfor %}</ul>
-  </details>
-</section>
-{% endif %}
-
-<div class="two-col">
-  <section class="card">
-    <h2>Last 14 days</h2>
-    <p class="muted small">Share of {{ 'your' if own else who.display_name ~ "'s" }} daily tasks done each day.</p>
-    <div class="heat">
-      {% for h in history %}
-        <div class="heat-cell lvl-{{ (h.pct // 25) if h.total else 'x' }}" title="{{ h.date|datefmt('%a %b %-d') }}: {{ h.done }}/{{ h.total }}">
-          <span>{{ h.date.day }}</span></div>
-      {% endfor %}
-    </div>
-  </section>
-  <section class="card">
-    <h2>Badges</h2>
-    <ul class="badges">
-      {% for b in badges %}<li class="badge{{ ' earned' if b.earned }}" title="{{ b.how }}"><span class="emoji">{{ b.emoji }}</span><span>{{ b.title }}</span></li>{% endfor %}
-    </ul>
-  </section>
-</div>
-
-<section class="card">
-  <h2>Recent activity</h2>
-  {% if activity %}
-  <ul class="feed">{% for a in activity %}
-    <li><span class="feed-date">{{ a.done_on }}</span> {{ a.task_name }} <span class="muted">· {{ a.points }} pts{{ ' · volunteered' if a.owner_at == 'volunteer' }}</span></li>
-  {% endfor %}</ul>
-  {% else %}<p class="muted">Nothing crossed off yet.</p>{% endif %}
-</section>
 {% endblock %}

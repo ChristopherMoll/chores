@@ -1,13 +1,15 @@
 {% extends "base.html" %}
+{% from "_macros.html" import mole %}
 {% block title %}Log in{% endblock %}
 {% block main_class %}login-wrap{% endblock %}
 {% block content %}
 <form method="post" class="login card">
-  <div class="login-mark">✓</div>
-  <h1>chores</h1>
-  <p class="muted">moll.casa household</p>
+  {{ mole('default', 'xl', 'Poopoo Magoo the ChoreMole, holding a clipboard') }}
+  <h1>MoleChores</h1>
+  <p class="login-welcome">A home you care for, together.</p>
+  <p class="muted">A little help from Poopoo Magoo the ChoreMole.</p>
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-  <label>Username <input name="username" autocomplete="username" autocapitalize="none" required autofocus></label>
+  <label>Username <input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
   <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
   <button class="btn primary wide">Log in</button>
 </form>

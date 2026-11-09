@@ -1,47 +1,14 @@
-{% extends "base.html" %}
-{% block title %}Nag me: {{ task.name }}{% endblock %}
+{% extends 'base.html' %}
+{% from '_macros.html' import mole, icon with context %}
+{% block title %}Remind me: {{ task.name }}{% endblock %}
 {% block content %}
-<p><a href="{{ url_for('main.home') }}#task-{{ task.id }}" class="small">← Back to my tasks</a></p>
-<h1>🔔 Nag me about {{ task.name }}</h1>
-{% if due %}<p class="muted">Next due: {{ due.date|datefmt('%A, %B %-d') }}{% if task.frequency == 'daily' and task.due_time %} by {{ task.due_time|clock }}{% endif %}. Reminders are skipped if it's already crossed off.</p>{% endif %}
-
-{% if not allowed %}
-<section class="card">
-  <p>Reminders count back from a due date, and this task doesn't have one.</p>
-  <p><a class="btn" href="{{ url_for('manage.task_edit', task_id=task.id) }}">{{ 'Set a due date' if task.frequency == 'once' else 'Change its frequency' }}</a></p>
-</section>
+<p><a href="{{ url_for('main.task_link', task_id=task.id) }}" class="text-action">{{ icon('arrow') }} Back to task</a></p>
+<div class="mole-note page-title">{{ mole('reminder', 'lg') }}<div><p class="eyebrow">A little help remembering</p><h1>Remind me.</h1><p class="muted">{{ task.name }}</p></div></div>
+{% if due %}<p class="context-note">Next due {{ due.date|datefmt('%A, %B %-d') }}{% if task.frequency == 'daily' and task.due_time %} by {{ task.due_time|clock }}{% endif %}. Your reminder is skipped when the task is already done.</p>{% endif %}
+{% if not allowed %}<section class="card"><p>Reminders count back from a due date, and this task doesn't have one.</p><a class="btn" href="{{ url_for('manage.task_edit', task_id=task.id) }}">{{ 'Set a due date' if task.frequency == 'once' else 'Change its schedule' }}</a></section>
 {% else %}
-<section class="card">
-  <h2>Your reminders</h2>
-  {% if items %}
-  <ul class="feed">{% for r in items %}
-    <li>{{ r.text }}
-      <form method="post" action="{{ url_for('main.reminder_delete', reminder_id=r.id) }}" class="inline">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="linklike small">remove</button>
-      </form>
-    </li>
-  {% endfor %}</ul>
-  {% else %}<p class="muted">None yet.</p>{% endif %}
-  {% if not has_device %}<p class="small warn-text">You haven't turned on notifications on any device yet. Use <a href="{{ url_for('main.home') }}#push-card">Enable notifications</a> on your dashboard.</p>{% endif %}
-</section>
-
-<form method="post" class="card form">
-  <h2>Add a reminder</h2>
-  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-  <p class="small muted">If this task isn't done…</p>
-  <div class="row">
-    <label class="w-hours">How long <input name="amount" type="number" min="0" max="365" value="{{ 0 if task.frequency == 'daily' else 1 }}" required inputmode="numeric"></label>
-    <label>Before it's due <select name="unit">
-      <option value="days" selected>days before</option>
-      <option value="hours">hours before</option>
-      <option value="minutes">minutes before</option>
-    </select></label>
-    <label data-at-time>At <input name="at_time" type="time" value="09:00"></label>
-  </div>
-  <p class="small muted">Use 0 days for "on the day it's due".
-    {% if task.frequency in ('weekly', 'monthly') %}A reminder can't fire before the {{ 'week' if task.frequency == 'weekly' else 'month' }} starts, because that's when this task opens up again.{% endif %}
-    {% if not (task.frequency == 'daily' and task.due_time) %}Hours and minutes count back from the end of the due day.{% endif %}</p>
-  <div class="form-actions"><button class="btn primary">Add reminder</button></div>
-</form>
+{% include '_push_card.html' %}
+<div class="two-col"><section class="card"><h2>Your reminders</h2>{% if items %}<ul class="reminder-list">{% for r in items %}<li><span>{{ r.text }}</span><form method="post" action="{{ url_for('main.reminder_delete', reminder_id=r.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="text-action">Remove</button></form></li>{% endfor %}</ul>{% else %}<p class="muted">No reminders yet. Choose a time that works for you.</p>{% endif %}{% if not has_device %}<p class="small context-note">Enable notifications on this device above to receive your reminders. <a href="{{ url_for('main.more') }}#install-help">Setting up an iPhone?</a></p>{% endif %}</section>
+<form method="post" class="card form"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><h2>Add a reminder</h2><p class="small muted">If this task isn't done by then, give me a nudge…</p><div class="row"><label class="w-hours">How long before? <input name="amount" type="number" min="0" max="365" value="{{ 0 if task.frequency == 'daily' else 1 }}" required inputmode="numeric"></label><label>Before it's due <select name="unit"><option value="days">days before</option><option value="hours">hours before</option><option value="minutes">minutes before</option></select></label><label data-at-time>At <input name="at_time" type="time" value="09:00"></label></div><p class="small muted">Use 0 days for the day it's due.{% if task.frequency in ('weekly','monthly') %} Your reminder will wait until this task's {{ 'week' if task.frequency == 'weekly' else 'month' }} starts.{% endif %}{% if not (task.frequency == 'daily' and task.due_time) %} Hours and minutes count back from the end of the due day.{% endif %}</p><div class="form-actions"><button class="btn primary">Add reminder</button></div></form></div>
 {% endif %}
 {% endblock %}

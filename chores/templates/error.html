@@ -1,9 +1,12 @@
 {% extends "base.html" %}
+{% from "_macros.html" import mole %}
 {% block title %}{{ error.code }}{% endblock %}
 {% block content %}
-<div class="card empty">
-  <h1>{{ error.code }} · {{ error.name }}</h1>
+<div class="card empty-state">
+  {{ mole('question', 'lg') }}
+  <h1>{{ {400:"Let's try that again.", 403:"This one's out of reach.", 404:"Let's find your way back.", 429:"A little breather."}.get(error.code, 'A little snag.') }}</h1>
   <p>{{ error.description }}</p>
+  <p class="small muted">{{ error.code }} · {{ error.name }}</p>
   <p><a class="btn" href="{{ url_for('main.home') }}">Back home</a></p>
 </div>
 {% endblock %}

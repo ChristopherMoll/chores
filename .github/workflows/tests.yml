@@ -8,6 +8,8 @@ on:
 jobs:
   pytest:
     runs-on: ${{ matrix.os }}
+    # The Pi's updater installs a commit only if this whole workflow succeeds.
+    continue-on-error: ${{ matrix.advisory == true }}
     strategy:
       fail-fast: false
       matrix:
@@ -15,14 +17,17 @@ jobs:
           # 3.11 = Raspberry Pi OS Bookworm; newest for early warning
           - { os: ubuntu-latest, python-version: "3.11" }
           - { os: ubuntu-latest, python-version: "3.13" }
-          # What the Pi actually runs: Windows 11 on ARM64
           - { os: windows-latest, python-version: "3.13" }
-          - { os: windows-11-arm, python-version: "3.13" }
+          # What the Pi runs: Windows 11 on ARM64. Advisory because its pip install has
+          # failed here even though the same install works on the Pi.
+          - { os: windows-11-arm, python-version: "3.13", advisory: true }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install --prefer-binary -r requirements-dev.txt
+      # Same order as deploy/windows/install.ps1
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install --prefer-binary -r requirements-dev.txt
       - run: pytest -q

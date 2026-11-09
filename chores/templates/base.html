@@ -1,49 +1,52 @@
+{% from '_macros.html' import icon with context %}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1f2a33">
-  <title>{% block title %}Chores{% endblock %} · moll.casa</title>
-  <link rel="icon" href="{{ url_for('static', filename='icon.svg') }}" type="image/svg+xml">
+  <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#191f1c" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block title %}Today{% endblock %} · MoleChores</title>
+  <link rel="icon" href="{{ url_for('static', filename='logo.png') }}" type="image/png">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-180.png') }}">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="chores">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="MoleChores">
   <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ version }}">
   <script src="{{ url_for('static', filename='app.js') }}?v={{ version }}" defer></script>
 </head>
-<body data-csrf="{{ csrf_token() }}">
+<body class="{{ 'signed-in' if g.user }}" data-csrf="{{ csrf_token() }}">
+<a href="#main-content" class="skip-link">Skip to content</a>
 {% if g.user %}
+{% set endpoint = request.endpoint %}
+{% set tasks_on = endpoint in ('main.home', 'main.person') %}
+{% set together_on = endpoint == 'main.compare' %}
+{% set progress_on = endpoint == 'main.progress' %}
+{% set more_on = endpoint in ('main.more', 'main.remind', 'auth.account') or request.blueprint == 'manage' or request.blueprint == 'admin' %}
 <header class="topbar">
-  <a class="brand" href="{{ url_for('main.home') }}"><span class="brand-mark">✓</span> chores</a>
-  <nav>
-    {% if g.user.role == 'member' %}
-      <a href="{{ url_for('main.home') }}" class="{{ 'on' if request.endpoint in ('main.home',) or (request.view_args and request.view_args.get('username') == g.user.username) }}">My tasks</a>
-    {% endif %}
-    <a href="{{ url_for('main.compare') }}" class="{{ 'on' if request.endpoint == 'main.compare' }}">Scoreboard</a>
-    <a href="{{ url_for('manage.tasks') }}" class="{{ 'on' if request.blueprint == 'manage' }}">Manage</a>
-    {% if g.user.role == 'admin' %}<a href="{{ url_for('admin.system') }}" class="{{ 'on' if request.blueprint == 'admin' }}">Admin</a>{% endif %}
+  <a class="brand" href="{{ url_for('main.home') }}" aria-label="MoleChores home"><img class="brand-logo" src="{{ url_for('static', filename='logo.png') }}" alt="" width="36" height="36"><span>Mole<wbr>Chores<span class="brand-dot">.</span></span></a>
+  <nav class="app-nav" aria-label="Main navigation">
+    {% if g.user.role == 'member' %}<a href="{{ url_for('main.home') }}" class="{{ 'on' if tasks_on }}" {{ 'aria-current=page' if tasks_on }}>{{ icon('tasks') }}<span>My tasks</span></a>{% endif %}
+    <a href="{{ url_for('main.compare') }}" class="{{ 'on' if together_on }}" {{ 'aria-current=page' if together_on }}>{{ icon('home') }}<span>Together</span></a>
+    {% if g.user.role == 'member' %}<a href="{{ url_for('main.progress') }}" class="{{ 'on' if progress_on }}" {{ 'aria-current=page' if progress_on }}>{{ icon('progress') }}<span>Progress</span></a>{% endif %}
+    <a href="{{ url_for('manage.tasks') }}" class="desktop-nav {{ 'on' if request.blueprint == 'manage' }}" {{ 'aria-current=page' if request.blueprint == 'manage' }}>{{ icon('manage') }}<span>Manage tasks</span></a>
+    {% if g.user.role == 'admin' %}<a href="{{ url_for('admin.system') }}" class="desktop-nav {{ 'on' if request.blueprint == 'admin' }}" {{ 'aria-current=page' if request.blueprint == 'admin' }}>{{ icon('admin') }}<span>Admin</span></a>{% endif %}
+    <a href="{{ url_for('main.more') }}" class="more-nav {{ 'on' if more_on }}" {{ 'aria-current=page' if endpoint == 'main.more' }}>{{ icon('more') }}<span>More</span></a>
   </nav>
+  <div class="sidebar-note"><span class="brand-dot">A little at a time.</span><p>A home you care for, together.</p></div>
   <details class="menu">
-    <summary><span class="avatar" data-color="{{ g.user.color }}">{{ g.user.display_name[0] }}</span></summary>
-    <div class="menu-pop">
-      <div class="menu-who">{{ g.user.display_name }}</div>
-      <a href="{{ url_for('auth.account') }}">Change password</a>
-      <form method="post" action="{{ url_for('auth.logout') }}">
-        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-        <button class="linklike">Log out</button>
-      </form>
-    </div>
+    <summary aria-label="Account for {{ g.user.display_name }}"><span class="avatar" data-color="{{ g.user.color }}">{{ g.user.display_name[0] }}</span><span class="menu-label">{{ g.user.display_name }}</span>{{ icon('chevron', 'menu-chevron') }}</summary>
+    <div class="menu-pop"><a href="{{ url_for('auth.account') }}">Account &amp; password</a><a href="{{ url_for('main.more') }}#preferences">Display preferences</a><form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="linklike">Log out</button></form></div>
   </details>
 </header>
 {% endif %}
-<main class="{% block main_class %}wrap{% endblock %}">
-  {% with msgs = get_flashed_messages(with_categories=true) %}
-    {% if msgs %}<div class="flashes">{% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}</div>{% endif %}
-  {% endwith %}
+<main id="main-content" tabindex="-1" class="{% block main_class %}wrap{% endblock %}">
+  <div id="connection-status" class="connection-status" role="status" hidden>You're offline. Reconnect to save changes.</div>
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}<div class="flashes">{% for cat, m in msgs %}<div class="flash {{ cat }}" role="{{ 'alert' if cat == 'error' else 'status' }}">{{ m }}</div>{% endfor %}</div>{% endif %}{% endwith %}
   {% block content %}{% endblock %}
 </main>
-<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"><span id="toast-message"></span><button id="toast-action" type="button" hidden>Undo</button><button id="toast-close" type="button" aria-label="Dismiss message">×</button></div>
 </body>
 </html>
