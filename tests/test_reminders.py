@@ -121,7 +121,8 @@ def test_install_script_is_executable():
 
 def test_windows_installer_is_ascii():
     """Windows PowerShell 5.1 misreads non-ASCII characters in a file without a BOM."""
-    (ROOT / "deploy" / "windows" / "install.ps1").read_bytes().decode("ascii")
+    for name in ("install.ps1", "update.ps1"):
+        (ROOT / "deploy" / "windows" / name).read_bytes().decode("ascii")
 
 
 def test_env_file_loading(tmp_path, monkeypatch):
@@ -537,6 +538,34 @@ def test_home_screen_icons_exist(app):
         assert c.get(icon["src"]).status_code == 200
     r = c.get("/static/icon-180.png")
     assert r.status_code == 200 and r.data.startswith(b"\x89PNG")
+
+
+def test_every_mascot_pose_used_in_a_template_exists():
+    used = {"default", "reminder", "celebrate", "award", "question", "suggestion"}
+    for path in (ROOT / "chores" / "templates").rglob("*.html"):
+        used |= set(re.findall(r"mole\('(\w+)'", path.read_text(encoding="utf-8")))
+    for pose in used:
+        assert (ROOT / "chores" / "static" / "mascot" / "small" / f"{pose}.png").is_file()
+
+
+def test_app_is_branded_molechores(app):
+    c = app.test_client()
+    assert "<h1>MoleChores</h1>" in c.get("/login").get_data(as_text=True)
+    assert json.loads(c.get("/static/manifest.webmanifest").data)["name"] == "MoleChores"
+
+
+def test_dashboard_mascot_follows_the_days_progress(app):
+    c = app.test_client()
+    t = login(c, "chris")
+
+    def pose():
+        page = c.get("/").get_data(as_text=True)
+        return re.search(r'id="hero-mole" src="[^"]*/mascot/small/(\w+)\.png', page).group(1)
+
+    assert pose() == "default"
+    for code in ("H02", "H05"):              # Chris's two daily tasks in the fixture
+        c.post(f"/tasks/{task_id(app, code)}/toggle", headers={**JSON_HEADERS, "X-CSRF-Token": t})
+    assert pose() == "celebrate"
 
 
 def test_dashboard_offers_notifications_only_on_your_own_page(app):

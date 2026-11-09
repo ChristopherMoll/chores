@@ -1,9 +1,15 @@
 {% extends "base.html" %}
+{% from "_macros.html" import mole %}
 {% block title %}Nag me: {{ task.name }}{% endblock %}
 {% block content %}
 <p><a href="{{ url_for('main.home') }}#task-{{ task.id }}" class="small">← Back to my tasks</a></p>
-<h1>🔔 Nag me about {{ task.name }}</h1>
-{% if due %}<p class="muted">Next due: {{ due.date|datefmt('%A, %B %-d') }}{% if task.frequency == 'daily' and task.due_time %} by {{ task.due_time|clock }}{% endif %}. Reminders are skipped if it's already crossed off.</p>{% endif %}
+<div class="mole-note page-title">
+  {{ mole('question' if not allowed else 'reminder', 'lg') }}
+  <div>
+    <h1>Nag me about {{ task.name }}</h1>
+    {% if due %}<p class="muted">Next due: {{ due.date|datefmt('%A, %B %-d') }}{% if task.frequency == 'daily' and task.due_time %} by {{ task.due_time|clock }}{% endif %}. Reminders are skipped if it's already crossed off.</p>{% endif %}
+  </div>
+</div>
 
 {% if not allowed %}
 <section class="card">

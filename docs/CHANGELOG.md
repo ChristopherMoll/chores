@@ -2,12 +2,21 @@
 
 All notable changes to this project are recorded here. Versions follow [semantic versioning](https://semver.org): the major number goes up for changes that need a manual step (a data migration or config change), the minor number for new features, and the patch number for fixes.
 
-## [Unreleased]
+## [1.3.0] - 2026-11-08
+
+On an iPhone, delete the old home-screen icon and add the app again to get the new name and icon. You'll need to log in and tap Enable notifications again on that phone.
 
 ### Added
+- **MoleChores:** the app has a new name and a mascot, Poopoo Magoo the ChoreMole, who appears on the login, dashboard, scoreboard, reminder, manage, import and error pages. On the dashboard the pose follows your day: working, overdue, or celebrating once today's list is done. The internal `chores` names (package, folders, settings, domain) are unchanged, so nothing needs reconfiguring.
+- New app icons featuring the mascot.
 - **Windows install:** `deploy/windows/install.ps1` installs or updates the app on Windows 11, including on a Raspberry Pi, using Task Scheduler instead of systemd. The app runs as the low-privilege LOCAL SERVICE account.
 - `manage.py --env-file` and `--log-file`, for running without systemd.
 - GitHub Actions now also runs the tests on Windows x64 and Windows on ARM64.
+- **Automatic updates on Windows:** `deploy/windows/update.ps1` checks GitHub every 15 minutes and installs the newest commit on `main` once its tests have passed. If the install fails, it restores the previous code and database.
+
+### Changed
+- The Windows ARM64 CI job is advisory, so it can't block an update by itself.
+- A failed pip self-upgrade no longer stops `install.ps1`.
 
 ## [1.2.0] - 2026-11-08
 

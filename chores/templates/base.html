@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1f2a33">
-  <title>{% block title %}Chores{% endblock %} · moll.casa</title>
-  <link rel="icon" href="{{ url_for('static', filename='icon.svg') }}" type="image/svg+xml">
+  <title>{% block title %}Today{% endblock %} · MoleChores</title>
+  <link rel="icon" href="{{ url_for('static', filename='logo.png') }}" type="image/png">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-180.png') }}">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="chores">
+  <meta name="apple-mobile-web-app-title" content="MoleChores">
   <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ version }}">
   <script src="{{ url_for('static', filename='app.js') }}?v={{ version }}" defer></script>
@@ -16,7 +16,7 @@
 <body data-csrf="{{ csrf_token() }}">
 {% if g.user %}
 <header class="topbar">
-  <a class="brand" href="{{ url_for('main.home') }}"><span class="brand-mark">✓</span> chores</a>
+  <a class="brand" href="{{ url_for('main.home') }}" aria-label="MoleChores home"><img class="brand-logo" src="{{ url_for('static', filename='logo.png') }}" alt=""><span class="brand-name">MoleChores</span></a>
   <nav>
     {% if g.user.role == 'member' %}
       <a href="{{ url_for('main.home') }}" class="{{ 'on' if request.endpoint in ('main.home',) or (request.view_args and request.view_args.get('username') == g.user.username) }}">My tasks</a>

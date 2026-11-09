@@ -32,7 +32,8 @@ Assert-Ok "The Python 3.11+ check for $BasePython"
 Write-Host "Using $BasePython"
 
 # Stop anything already running so the code and virtualenv can be replaced.
-$existing = Get-ScheduledTask -TaskPath $TaskPath -ErrorAction SilentlyContinue
+# Not the update task: update.ps1 runs this script, and stopping it would end the update halfway.
+$existing = Get-ScheduledTask -TaskPath $TaskPath -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -ne "update" }
 foreach ($task in $existing) {
     $task | Disable-ScheduledTask | Out-Null
     $task | Stop-ScheduledTask
@@ -46,8 +47,8 @@ $global:LASTEXITCODE = 0
 $Python = Join-Path $App ".venv\Scripts\python.exe"
 & $BasePython -m venv (Join-Path $App ".venv")
 Assert-Ok "Creating the virtualenv"
+# Not fatal: a rollback has to work even if PyPI is what broke the update.
 & $Python -m pip install -q --upgrade pip
-Assert-Ok "Upgrading pip"
 # --prefer-binary: on ARM64 the newest cryptography can lag behind on prebuilt wheels,
 # and building it from source needs a Rust and C compiler toolchain.
 & $Python -m pip install -q --prefer-binary -r (Join-Path $App "requirements.txt")
@@ -105,6 +106,21 @@ Register-ChoresTask "notify" "notify" @(
 Register-ChoresTask "backup" "backup `"$Backups`" --keep 30" @(
     (New-ScheduledTaskTrigger -Daily -At "3:30AM")
 ) (New-TimeSpan -Hours 1)
+
+# Automatic updates. This one needs SYSTEM, because it replaces the code and the scheduled tasks.
+# Left alone while it's running, since then it's the one that started this install.
+$updater = Get-ScheduledTask -TaskPath $TaskPath -TaskName "update" -ErrorAction SilentlyContinue
+if (-not $updater -or $updater.State -ne "Running") {
+    $systemAccount = ([Security.Principal.SecurityIdentifier]"S-1-5-18").Translate([Security.Principal.NTAccount]).Value
+    $updateScript = Join-Path $App "deploy\windows\update.ps1"
+    Register-ScheduledTask -TaskPath $TaskPath -TaskName "update" `
+        -Action (New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$updateScript`"") `
+        -Trigger (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 15)) `
+        -Settings (New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
+            -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 1)) `
+        -Principal (New-ScheduledTaskPrincipal -UserId $systemAccount -LogonType ServiceAccount -RunLevel Highest) `
+        -Force | Out-Null
+}
 
 Start-ScheduledTask -TaskPath $TaskPath -TaskName "serve"
 

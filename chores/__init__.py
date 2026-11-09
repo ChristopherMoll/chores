@@ -1,4 +1,4 @@
-"""Chores: a small household task tracker for the Moll household."""
+"""MoleChores: a small household task tracker for the Moll household."""
 import os
 import secrets
 from datetime import timedelta
@@ -9,7 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import auth, db, logic, periods
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 
 def _env_bool(name, default):

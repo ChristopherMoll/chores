@@ -1,11 +1,14 @@
 {% extends "base.html" %}
-{% from "_macros.html" import bar with context %}
+{% from "_macros.html" import bar, mole with context %}
 {% block title %}Scoreboard{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div>
-    <h1>Scoreboard</h1>
-    <p class="muted">{{ start|datefmt('%b %-d') }} – {{ last|datefmt('%b %-d') }}</p>
+  <div class="mole-note">
+    {{ mole('award' if leader else 'question', 'lg') }}
+    <div>
+      <h1>Scoreboard</h1>
+      <p class="muted">{{ start|datefmt('%b %-d') }} – {{ last|datefmt('%b %-d') }}</p>
+    </div>
   </div>
   <div class="seg">
     <a href="?range=week" class="{{ 'on' if rng == 'week' }}">This week</a>
@@ -89,6 +92,6 @@
       </form>{% endif %}
     </li>
   {% endfor %}</ul>
-  {% else %}<p class="muted">Nothing yet. The first cross-off starts the feed.</p>{% endif %}
+  {% else %}<div class="mole-note">{{ mole('question') }}<p class="muted">Nothing yet. The first cross-off starts the feed.</p></div>{% endif %}
 </section>
 {% endblock %}

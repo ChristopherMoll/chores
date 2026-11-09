@@ -36,6 +36,10 @@
 </li>
 {% endmacro %}
 
+{% macro mole(pose, size='', alt='') %}
+<img class="mole {{ size }}" src="{{ url_for('static', filename='mascot/small/' ~ pose ~ '.png') }}" alt="{{ alt }}">
+{% endmacro %}
+
 {% macro bar(p, cls='') %}
 <div class="bar {{ cls }}" role="progressbar" aria-valuenow="{{ p.pct }}" aria-valuemin="0" aria-valuemax="100">
   <span data-pct="{{ p.pct }}"></span>

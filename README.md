@@ -1,8 +1,8 @@
-# chores
+# MoleChores
 
 [![tests](../../actions/workflows/tests.yml/badge.svg)](../../actions/workflows/tests.yml)
 
-Household task tracker for the Moll household. It runs on the Raspberry Pi and will be live at **https://chores.moll.casa**.
+Household task tracker for the Moll household, with Poopoo Magoo the ChoreMole. It runs on the Raspberry Pi and will be live at **https://chores.moll.casa**.
 
 The 109 task cards are dealt to Chris, Andrea, Shared, or Needs Volunteer. Each of you sees what's left today, this week and this month, crosses tasks off, and can check the scoreboard. Tasks can have due dates, and you can ask for a push notification on your iPhone if one isn't done in time.
 

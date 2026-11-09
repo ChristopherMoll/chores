@@ -237,7 +237,7 @@ def export_csv():
                     t["due_date"] or "", periods.WEEKDAYS[t["due_weekday"]] if t["due_weekday"] is not None else "",
                     t["due_monthday"] or "", t["due_time"] or ""])
     return Response(buf.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition": "attachment; filename=chores-tasks.csv"})
+                    headers={"Content-Disposition": "attachment; filename=molechores-tasks.csv"})
 
 
 def _import_due(task, row, new_freq):

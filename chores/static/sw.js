@@ -8,7 +8,7 @@ self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim(
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) { /* fall through to the default text */ }
-  event.waitUntil(self.registration.showNotification(data.title || "chores", {
+  event.waitUntil(self.registration.showNotification(data.title || "MoleChores", {
     body: data.body || "",
     tag: data.tag,
     icon: "/static/icon-192.png",

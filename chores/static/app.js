@@ -31,6 +31,23 @@
     return { done, total: items.length };
   }
 
+  // Keep the mascot and the "left today" line in step as tasks get crossed off.
+  function refreshHero(daily) {
+    const mole = document.getElementById("hero-mole");
+    const lede = document.getElementById("hero-lede");
+    if (!mole || !lede || !daily || !daily.total) return;
+    const allDone = daily.done === daily.total;
+    const overdue = document.querySelector(".card:not(.grabs) li.task:not(.done) .tag.overdue");
+    const src = allDone ? mole.dataset.allDone : overdue ? mole.dataset.overdue : mole.dataset.working;
+    if (mole.getAttribute("src") !== src) {
+      mole.setAttribute("src", src);
+      mole.classList.toggle("cheer", allDone);
+    }
+    lede.textContent = allDone
+      ? "Everything for today is done. 🎉"
+      : (daily.total - daily.done) + " of " + daily.total + " daily task" + (daily.total === 1 ? "" : "s") + " left today.";
+  }
+
   document.addEventListener("submit", async (ev) => {
     const form = ev.target;
     if (!form.classList.contains("tick-form")) return;
@@ -62,6 +79,7 @@
       btn.title = data.done ? "Undo" : "Cross off";
       const section = li.closest(".period");
       const c = recount(section);
+      refreshHero(recount(document.querySelector('.period[data-period="daily"]')));
       if (data.done) {
         if (section && section.dataset.period === "daily" && c && c.done === c.total) {
           toast("Clean sweep! Everything for today is done 🧹", "win");
@@ -133,7 +151,7 @@
     if (!("serviceWorker" in navigator && "PushManager" in window && "Notification" in window)) {
       const iPhone = /iPhone|iPad/.test(navigator.userAgent);
       status.textContent = iPhone
-        ? "To get reminders on this iPhone: tap Share, then Add to Home Screen, then open chores from its icon and log in there. Needs iOS 16.4 or later."
+        ? "To get reminders on this iPhone: tap Share, then Add to Home Screen, then open MoleChores from its icon and log in there. Needs iOS 16.4 or later."
         : "This browser can't receive push notifications.";
       return;
     }
@@ -160,7 +178,7 @@
         status.textContent = "This device will get your reminders.";
         post("/push/subscribe", sub.toJSON()).catch(() => {});   // keeps the server's copy current
       } else if (Notification.permission === "denied") {
-        status.textContent = "Notifications are blocked. Turn them on for chores in your device's Settings.";
+        status.textContent = "Notifications are blocked. Turn them on for MoleChores in your device's Settings.";
       } else {
         status.textContent = "Turn this on to get the reminders you set with \"Nag me\" on this device.";
       }

@@ -1,11 +1,15 @@
 {% extends "base.html" %}
+{% from "_macros.html" import mole %}
 {% block title %}Manage tasks{% endblock %}
 {% block main_class %}wrap wide{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div>
-    <h1>Manage tasks</h1>
-    <p class="muted">Deal cards, set frequency and hours, then hit Save. Click a task name to edit its text.</p>
+  <div class="mole-note">
+    {{ mole('default', 'lg') }}
+    <div>
+      <h1>Manage tasks</h1>
+      <p class="muted">Deal cards, set frequency and hours, then hit Save. Click a task name to edit its text.</p>
+    </div>
   </div>
   <div class="actions">
     <a class="btn" href="{{ url_for('manage.import_tasks') }}">Import spreadsheet</a>

@@ -1,14 +1,22 @@
 {% extends "base.html" %}
-{% from "_macros.html" import task_row, bar with context %}
+{% from "_macros.html" import task_row, bar, mole with context %}
 {% block title %}{{ 'My tasks' if own else who.display_name }}{% endblock %}
 {% block content %}
 {% set p = dash.progress %}
+{% set overdue = namespace(found=false) %}
+{% for f in ('daily', 'weekly', 'monthly', 'once') %}{% for r in dash.board[f] if r.due and r.due.overdue and not r.done %}{% set overdue.found = true %}{% endfor %}{% endfor %}
+{% set idle_pose = 'reminder' if overdue.found else ('question' if p.daily.total == 0 else 'default') %}
+{% set pose = 'celebrate' if p.daily.total and p.daily.done == p.daily.total else idle_pose %}
+{% macro pose_url(name) %}{{ url_for('static', filename='mascot/small/' ~ name ~ '.png') }}{% endmacro %}
 <section class="hero" data-color="{{ who.color }}">
+  <div class="hero-main">
+  <img class="mole lg" id="hero-mole" src="{{ pose_url(pose) }}" alt=""
+    data-working="{{ pose_url('default') }}" data-overdue="{{ pose_url('reminder') }}" data-all-done="{{ pose_url('celebrate') }}">
   <div>
     <p class="eyebrow">{{ today|datefmt('%A, %B %-d') }}</p>
     <h1>{% if own %}Hi, {{ who.display_name }}{% else %}{{ who.display_name }}'s progress{% endif %}</h1>
     {% set left = p.daily.total - p.daily.done %}
-    <p class="lede">
+    <p class="lede" id="hero-lede">
       {% if p.daily.total == 0 %}No daily tasks dealt {{ 'to you' if own else 'yet' }}.
       {% elif left == 0 %}Everything for today is done. 🎉
       {% else %}{{ left }} of {{ p.daily.total }} daily task{{ 's' if p.daily.total != 1 }} left today.{% endif %}
@@ -16,6 +24,7 @@
     {% if not own %}
     <p class="switch">{% for m in members if m.id != who.id %}<a href="{{ url_for('main.person', username=m.username) }}">See {{ m.display_name }} →</a>{% endfor %}</p>
     {% endif %}
+  </div>
   </div>
   <div class="hero-stats">
     <div class="stat"><b>{{ streak }}</b><span>day streak{{ ' 🔥' if streak >= 3 }}</span></div>
@@ -30,9 +39,12 @@
 
 {% if own %}
 <section class="card push-card" id="push-card" data-vapid="{{ vapid_public }}" hidden>
-  <div>
-    <h2>Notifications</h2>
-    <p class="muted small" id="push-status"></p>
+  <div class="mole-note">
+    {{ mole('reminder') }}
+    <div>
+      <h2>Notifications</h2>
+      <p class="muted small" id="push-status"></p>
+    </div>
   </div>
   <div class="actions">
     <button type="button" class="btn primary" id="push-on" hidden>Enable notifications</button>
@@ -71,9 +83,12 @@
 {% set grab_rows = dash.grabs.daily + dash.grabs.weekly + dash.grabs.monthly + dash.grabs.once %}
 {% if grab_rows %}
 <section class="card grabs">
-  <header>
-    <h2>Up for grabs <span class="pill">{{ dash.grabs_open }} open</span></h2>
-    <p class="muted small">Needs Volunteer tasks. Either of you can take one, and you get 50% bonus points for it.</p>
+  <header class="mole-note">
+    {{ mole('suggestion') }}
+    <div>
+      <h2>Up for grabs <span class="pill">{{ dash.grabs_open }} open</span></h2>
+      <p class="muted small">Needs Volunteer tasks. Either of you can take one, and you get 50% bonus points for it.</p>
+    </div>
   </header>
   <ul class="tasks">{% for r in grab_rows %}{{ task_row(r, own, g.user, 'grab') }}{% endfor %}</ul>
 </section>
@@ -115,6 +130,6 @@
   <ul class="feed">{% for a in activity %}
     <li><span class="feed-date">{{ a.done_on }}</span> {{ a.task_name }} <span class="muted">· {{ a.points }} pts{{ ' · volunteered' if a.owner_at == 'volunteer' }}</span></li>
   {% endfor %}</ul>
-  {% else %}<p class="muted">Nothing crossed off yet.</p>{% endif %}
+  {% else %}<div class="mole-note">{{ mole('question') }}<p class="muted">Nothing crossed off yet.</p></div>{% endif %}
 </section>
 {% endblock %}

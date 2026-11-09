@@ -1,4 +1,4 @@
-# Chores: Manual
+# MoleChores: Manual
 
 A small web app that runs on our Raspberry Pi and keeps track of who does what around the house. It started as a deck of 109 printed task cards, then became a spreadsheet, and this is the third version.
 
@@ -80,7 +80,7 @@ Tap a task's name, then **🔔 Nag me about this**, and choose when you'd like a
 iOS only allows push for web apps saved to the home screen, and needs iOS 16.4 or later.
 
 1. Open `https://chores.moll.casa` in Safari, tap **Share**, then **Add to Home Screen**.
-2. Open chores **from the new icon** and log in again. The home-screen app has its own login, separate from Safari.
+2. Open MoleChores **from the new icon** and log in again. The home-screen app has its own login, separate from Safari.
 3. On your dashboard, tap **Enable notifications** and allow them. **Send a test** confirms it works.
 
 Do this on each device you want reminders on. Push needs the real HTTPS site, so it won't work over plain-HTTP LAN testing.
@@ -359,7 +359,20 @@ The first run asks for the three passwords. An update backs up the database and 
 | Database, keys, settings (`chores.env`) | `C:\ProgramData\chores` |
 | Logs | `C:\ProgramData\chores\logs` (`serve.log`, `notify.log`, `backup.log`) |
 | Backups | `C:\ProgramData\chores\backups` (the last 30 are kept) |
-| Scheduled tasks | Task Scheduler → `chores`: `serve`, `notify` (every minute), `backup` (3:30 am) |
+| Scheduled tasks | Task Scheduler → `chores`: `serve`, `notify` (every minute), `backup` (3:30 am), `update` (every 15 minutes) |
+| Updater log and rollback copies | `C:\Program Files\chores-update` (admins only) |
+
+**Automatic updates:** merge to `main` and the Pi installs it by itself. The `update` task checks GitHub every 15 minutes and installs the newest commit on `main` once that commit's tests have passed. The app is down for a minute or two while it does. If the install fails, the updater puts back the previous code and database and skips that commit until a newer one arrives.
+
+Its status is in `C:\Program Files\chores-update\update.log`, readable from an Administrator PowerShell:
+
+```powershell
+Get-Content "C:\Program Files\chores-update\update.log" -Tail 30
+```
+
+To retry a skipped commit, delete `failed.txt` in that folder. To pause updates, run `Disable-ScheduledTask -TaskPath \chores\ -TaskName update`, and `Enable-ScheduledTask` with the same options to resume.
+
+The task runs as SYSTEM, so anyone who can push to `main` can run code on the Pi. Keep two-factor login on for the GitHub account.
 
 **Restart** the app after changing `chores.env`:
 

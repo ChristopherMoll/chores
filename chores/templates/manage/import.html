@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% from "_macros.html" import mole %}
 {% block title %}Import{% endblock %}
 {% block content %}
 <p><a href="{{ url_for('manage.tasks') }}" class="small">← All tasks</a></p>
-<h1>Import from spreadsheet</h1>
+<div class="mole-note page-title">{{ mole('suggestion', 'lg') }}<h1>Import from spreadsheet</h1></div>
 <div class="card form narrow">
   <p>Upload <b>Household_Tasks.xlsx</b> (or a CSV exported from here) after filling in owners and hours. Rows are matched by <b>Code</b>.</p>
   <ul class="small">

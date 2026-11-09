@@ -1,4 +1,4 @@
-/* chores · one stylesheet, no build step. Mobile first. */
+/* MoleChores · one stylesheet, no build step. Mobile first. */
 :root {
   --bg: #f4f1ea;
   --paper: #fffdf8;
@@ -46,7 +46,8 @@ code { background: var(--bg); padding: .05em .35em; border-radius: 5px; font-siz
 }
 @media (prefers-color-scheme: dark) { .topbar { background: #0d1115; } }
 .brand { font-weight: 800; text-decoration: none; letter-spacing: -.02em; display: flex; align-items: center; gap: .4rem; }
-.brand-mark { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 8px; background: var(--accent); color: #fff; font-size: .9rem; }
+.brand-logo { width: 2rem; height: 2rem; border-radius: 50%; flex: none; }
+@media (max-width: 520px) { .brand-name { display: none; } }
 .topbar nav { display: flex; gap: .2rem; flex: 1; overflow-x: auto; }
 .topbar nav a { text-decoration: none; padding: .35rem .7rem; border-radius: 999px; font-size: .92rem; opacity: .8; white-space: nowrap; }
 .topbar nav a.on, .topbar nav a:hover { background: rgba(255, 255, 255, .12); opacity: 1; }
@@ -66,6 +67,18 @@ code { background: var(--bg); padding: .05em .35em; border-radius: 5px; font-siz
   background: var(--c); color: #fff; font-weight: 700; font-size: .9rem;
 }
 .avatar.big { width: 2.6rem; height: 2.6rem; font-size: 1.1rem; }
+
+/* ---------- mascot ---------- */
+.mole { --size: 3.4rem; width: var(--size); height: var(--size); object-fit: contain; flex: none; display: block; }
+.mole.lg { --size: 5.5rem; }
+.mole.xl { --size: 9rem; margin: 0 auto; }
+.card.empty > .mole { margin: 0 auto .4rem; }
+.mole-note { display: flex; align-items: center; gap: .8rem; min-width: 0; }
+.mole-note p { margin: .2rem 0 0; }
+.page-title { margin-bottom: 1rem; }
+#hero-mole { transition: transform .25s ease; }
+#hero-mole.cheer { transform: scale(1.12) rotate(-3deg); }
+@media (min-width: 760px) { .hero .mole.lg { --size: 7rem; } }
 
 /* ---------- layout ---------- */
 .wrap { max-width: 980px; margin: 0 auto; padding: 1rem max(1rem, env(safe-area-inset-left)) 4rem; }
@@ -120,7 +133,6 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .tick:focus-visib
 .login { width: min(22rem, 100%); text-align: center; padding: 2rem 1.6rem; }
 .login h1 { margin: .3rem 0 0; }
 .login label { display: flex; flex-direction: column; gap: .3rem; text-align: left; font-size: .85rem; font-weight: 600; margin: .9rem 0; color: var(--ink-2); }
-.login-mark { width: 3rem; height: 3rem; margin: 0 auto; border-radius: 14px; display: grid; place-items: center; background: var(--accent); color: #fff; font-size: 1.5rem; font-weight: 800; }
 
 /* ---------- dashboard ---------- */
 .hero {
@@ -130,6 +142,7 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .tick:focus-visib
   border: 1px solid color-mix(in srgb, var(--c) 25%, var(--line));
 }
 .hero h1 { margin: 0; }
+.hero-main { display: flex; align-items: center; gap: .9rem; flex: 1 1 16rem; min-width: 0; }
 .eyebrow { margin: 0; font-size: .8rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
 .lede { margin: .3rem 0 0; color: var(--ink-2); }
 .switch a { font-size: .9rem; }
@@ -193,8 +206,6 @@ li.task:target { background: color-mix(in srgb, var(--accent) 12%, transparent);
 .warn-text { color: var(--warn); }
 .doneby { font-size: .72rem; font-weight: 700; color: var(--c); }
 .grabs { border-style: dashed; }
-.grabs header { display: block; }
-.grabs header p { margin: .2rem 0 0; }
 .fold > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem; }
 .fold > summary::-webkit-details-marker { display: none; }
 .fold > summary h2::before { content: "▸ "; color: var(--muted); }
