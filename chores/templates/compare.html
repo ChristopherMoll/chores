@@ -5,7 +5,7 @@
 <div class="page-head">
   <div>
     <h1>Scoreboard</h1>
-    <p class="muted">{{ start.strftime('%b %-d') }} – {{ last.strftime('%b %-d') }}</p>
+    <p class="muted">{{ start|datefmt('%b %-d') }} – {{ last|datefmt('%b %-d') }}</p>
   </div>
   <div class="seg">
     <a href="?range=week" class="{{ 'on' if rng == 'week' }}">This week</a>

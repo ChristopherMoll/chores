@@ -5,7 +5,7 @@
 {% set p = dash.progress %}
 <section class="hero" data-color="{{ who.color }}">
   <div>
-    <p class="eyebrow">{{ today.strftime('%A, %B %-d') }}</p>
+    <p class="eyebrow">{{ today|datefmt('%A, %B %-d') }}</p>
     <h1>{% if own %}Hi, {{ who.display_name }}{% else %}{{ who.display_name }}'s progress{% endif %}</h1>
     {% set left = p.daily.total - p.daily.done %}
     <p class="lede">
@@ -28,6 +28,20 @@
   <p class="peek"><a href="{{ url_for('main.person', username=m.username) }}">How's {{ m.display_name }} doing? →</a></p>
 {% endfor %}{% endif %}
 
+{% if own %}
+<section class="card push-card" id="push-card" data-vapid="{{ vapid_public }}" hidden>
+  <div>
+    <h2>Notifications</h2>
+    <p class="muted small" id="push-status"></p>
+  </div>
+  <div class="actions">
+    <button type="button" class="btn primary" id="push-on" hidden>Enable notifications</button>
+    <button type="button" class="btn" id="push-test" hidden>Send a test</button>
+    <button type="button" class="btn" id="push-off" hidden>Turn off</button>
+  </div>
+</section>
+{% endif %}
+
 <div class="periods">
 {% for f in ('daily', 'weekly', 'monthly') %}
   {% set rows = dash.board[f] %}
@@ -47,7 +61,14 @@
 {% endfor %}
 </div>
 
-{% set grab_rows = dash.grabs.daily + dash.grabs.weekly + dash.grabs.monthly %}
+{% if dash.board.once %}
+<section class="card">
+  <header><h2>One-off</h2></header>
+  <ul class="tasks">{% for r in dash.board.once %}{{ task_row(r, own, g.user) }}{% endfor %}</ul>
+</section>
+{% endif %}
+
+{% set grab_rows = dash.grabs.daily + dash.grabs.weekly + dash.grabs.monthly + dash.grabs.once %}
 {% if grab_rows %}
 <section class="card grabs">
   <header>
@@ -75,8 +96,8 @@
     <p class="muted small">Share of {{ 'your' if own else who.display_name ~ "'s" }} daily tasks done each day.</p>
     <div class="heat">
       {% for h in history %}
-        <div class="heat-cell lvl-{{ (h.pct // 25) if h.total else 'x' }}" title="{{ h.date.strftime('%a %b %-d') }}: {{ h.done }}/{{ h.total }}">
-          <span>{{ h.date.strftime('%-d') }}</span></div>
+        <div class="heat-cell lvl-{{ (h.pct // 25) if h.total else 'x' }}" title="{{ h.date|datefmt('%a %b %-d') }}: {{ h.done }}/{{ h.total }}">
+          <span>{{ h.date.day }}</span></div>
       {% endfor %}
     </div>
   </section>

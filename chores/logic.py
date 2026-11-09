@@ -3,14 +3,15 @@
 Kept free of Flask request objects so it can be tested directly.
 """
 import math
+import sqlite3
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from . import periods
 from .db import get_db
 
 SHARED, VOLUNTEER = "shared", "volunteer"
-DEFAULT_POINTS = {"daily": 2, "weekly": 5, "monthly": 10, "other": 8}
+DEFAULT_POINTS = {"daily": 2, "weekly": 5, "monthly": 10, "once": 8, "other": 8}
 VOLUNTEER_BONUS = 1.5
 
 
@@ -57,13 +58,13 @@ def points_for(task, owner_at):
 # ---------------------------------------------------------------- status ---
 
 def _completions_for(keys):
-    """Map task_id -> completion row (with doer's name) for the given period keys."""
+    """Map (task_id, period_key) -> completion row (with doer's name) for the given period keys."""
     if not keys:
         return {}
     q = ("SELECT c.*, u.display_name AS doer, u.username AS doer_username, u.color AS doer_color"
          " FROM completions c JOIN users u ON u.id = c.user_id"
          f" WHERE c.period_key IN ({','.join('?' * len(keys))})")
-    return {r["task_id"]: r for r in get_db().execute(q, list(keys)).fetchall()}
+    return {(r["task_id"], r["period_key"]): r for r in get_db().execute(q, list(keys)).fetchall()}
 
 
 def _last_logged(task_ids):
@@ -77,9 +78,11 @@ def _last_logged(task_ids):
 def board(owners, d=None):
     """Active tasks owned by any of `owners`, grouped by frequency, each with its done state.
 
-    Returns {freq: [ {task, done, completion, last_on} ]}.
+    Returns {freq: [ {task, done, completion, last_on, due} ]}. A finished
+    one-off stays visible for the rest of the day it was done, then drops off.
     """
     d = d or periods.today()
+    now = periods.now()
     ph = ",".join("?" * len(owners))
     tasks = get_db().execute(
         f"SELECT * FROM tasks WHERE active = 1 AND owner IN ({ph}) ORDER BY grp, code", list(owners)
@@ -89,13 +92,14 @@ def board(owners, d=None):
     last = _last_logged([t["id"] for t in tasks if t["frequency"] == "other"])
     out = {f: [] for f in periods.FREQUENCIES}
     for t in tasks:
-        c = done.get(t["id"])
-        if c and c["period_key"] != periods.period_key(t["frequency"], d):
-            c = None   # completion from a different frequency's period (task was re-scheduled)
+        c = done.get((t["id"], periods.period_key(t["frequency"], d)))
+        if t["frequency"] == "once" and c and c["done_on"] != d.isoformat():
+            continue
         out[t["frequency"]].append({"task": t, "done": c is not None, "completion": c,
-                                    "last_on": last.get(t["id"])})
-    for f in out:   # undone first, then alphabetical-by-code
-        out[f].sort(key=lambda r: (r["done"], r["task"]["code"]))
+                                    "last_on": last.get(t["id"]), "due": periods.due_info(t, now)})
+    for f in out:   # undone first, then soonest due, then alphabetical-by-code
+        out[f].sort(key=lambda r: (r["done"], r["due"]["date"] if r["due"] else date.max,
+                                   r["task"]["due_time"] or "", r["task"]["code"]))
     return out
 
 
@@ -109,12 +113,11 @@ def dashboard(username, d=None):
     """Everything the dashboard needs for one member."""
     mine = board([username, SHARED], d)
     grabs = board([VOLUNTEER], d)
-    recurring = [f for f in periods.FREQUENCIES if f != "other"]
     return {
         "board": mine,
         "grabs": grabs,
-        "progress": {f: progress(mine[f]) for f in recurring},
-        "grabs_open": sum(1 for f in recurring for r in grabs[f] if not r["done"]),
+        "progress": {f: progress(mine[f]) for f in periods.RECURRING},
+        "grabs_open": sum(1 for f in periods.RECURRING + ("once",) for r in grabs[f] if not r["done"]),
     }
 
 
@@ -141,14 +144,17 @@ def toggle(user, task, d=None):
         return False
     if not can_complete(user, task):
         raise PermissionError("That task belongs to someone else.")
-    db.execute(
-        "INSERT INTO completions(task_id, user_id, period_key, done_on, done_at, owner_at, points)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (task["id"], user["id"], key, d.isoformat(),
-         datetime.now(timezone.utc).isoformat(timespec="seconds"),
-         task["owner"], points_for(task, task["owner"])),
-    )
-    db.commit()
+    try:
+        db.execute(
+            "INSERT INTO completions(task_id, user_id, period_key, done_on, done_at, owner_at, points)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (task["id"], user["id"], key, d.isoformat(),
+             datetime.now(timezone.utc).isoformat(timespec="seconds"),
+             task["owner"], points_for(task, task["owner"])),
+        )
+        db.commit()
+    except sqlite3.IntegrityError:   # the other person crossed it off at the same moment
+        db.rollback()
     return True
 
 
@@ -187,7 +193,8 @@ def streak(username, d=None, limit=366):
     start = d - timedelta(days=limit)
     rows = db.execute(
         f"SELECT period_key, COUNT(*) AS n FROM completions WHERE task_id IN ({','.join('?' * len(ids))})"
-        " AND period_key >= ? GROUP BY period_key", ids + [f"D{start.isoformat()}"]).fetchall()
+        " AND period_key >= ? AND period_key LIKE 'D%' GROUP BY period_key",
+        ids + [f"D{start.isoformat()}"]).fetchall()
     full = {r["period_key"][1:] for r in rows if r["n"] >= len(ids)}
     n, day = 0, d
     if day.isoformat() not in full:
@@ -204,7 +211,7 @@ def load_hours(username):
         "SELECT COALESCE(SUM(CASE WHEN owner = ? THEN hours_month END), 0) AS own,"
         " COALESCE(SUM(CASE WHEN owner = 'shared' THEN hours_month END), 0) AS shared,"
         " SUM(CASE WHEN owner = ? THEN 1 ELSE 0 END) AS n_own"
-        " FROM tasks WHERE active = 1", (username, username)).fetchone()
+        " FROM tasks WHERE active = 1 AND frequency != 'once'", (username, username)).fetchone()
     return {"own": r["own"], "shared_half": r["shared"] / 2, "total": r["own"] + r["shared"] / 2,
             "tasks": r["n_own"] or 0}
 
@@ -261,7 +268,8 @@ def history_grid(username, user_id, days=14, d=None):
     if ids:
         for r in db.execute(
                 f"SELECT period_key, COUNT(*) AS n FROM completions WHERE task_id IN ({','.join('?' * len(ids))})"
-                " AND period_key >= ? GROUP BY period_key", ids + [f"D{start.isoformat()}"]):
+                " AND period_key >= ? AND period_key LIKE 'D%' GROUP BY period_key",
+                ids + [f"D{start.isoformat()}"]):
             counts[r["period_key"][1:]] = r["n"]
     out = []
     for i in range(days):

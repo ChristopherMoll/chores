@@ -48,8 +48,16 @@ def check_csrf():
     if request.method != "POST":
         return
     sent = request.form.get("csrf") or request.headers.get("X-CSRF-Token", "")
-    if not hmac.compare_digest(sent, session.get("csrf", "")):
+    expected = session.get("csrf", "")
+    if not expected or not hmac.compare_digest(sent.encode(), expected.encode()):
         abort(400, "Your session expired. Go back, refresh the page, and try again.")
+
+
+def safe_next(target):
+    """Only follow same-site paths. Browsers treat backslashes as slashes and strip control characters."""
+    ok = (target.startswith("/") and not target.startswith("//")
+          and "\\" not in target and not any(ord(c) < 32 for c in target))
+    return target if ok else url_for("main.home")
 
 
 def login_required(view):
@@ -88,8 +96,7 @@ def login():
             session.clear()
             session.permanent = True
             session["uid"] = user["id"]
-            nxt = request.args.get("next", "")
-            return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else url_for("main.home"))
+            return redirect(safe_next(request.args.get("next", "")))
         _failures[ip].append(time.time())
         flash("That username and password don't match.", "error")
     return render_template("login.html")

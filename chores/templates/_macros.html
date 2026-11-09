@@ -3,7 +3,7 @@
 {%- set c = r.completion -%}
 {%- set mine_to_undo = c and c.user_id == viewer.id -%}
 {%- set interactive = own and viewer.role == 'member' and (not r.done or mine_to_undo) -%}
-<li class="task{{ ' done' if r.done }}{{ ' other' if t.frequency == 'other' }}" data-task="{{ t.id }}">
+<li class="task{{ ' done' if r.done }}{{ ' other' if t.frequency == 'other' }}" data-task="{{ t.id }}" id="task-{{ t.id }}">
   <form method="post" action="{{ url_for('main.toggle', task_id=t.id) }}" class="tick-form">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <button class="tick" {{ '' if interactive else 'disabled' }}
@@ -16,6 +16,8 @@
     <summary>
       <span class="task-name">{{ t.name }}</span>
       <span class="task-meta">
+        {% if r.due %}<span class="tag due{{ ' overdue' if r.due.overdue }}">{{ r.due.label }}</span>{% endif %}
+        {% if t.id in nags %}<span class="tag plain" title="You have a reminder on this">🔔</span>{% endif %}
         <span class="tag grp-{{ t.grp|lower }}">{{ t.grp }}</span>
         {% if t.owner == 'shared' %}<span class="tag shared">Shared</span>{% endif %}
         {% if t.owner == 'volunteer' %}<span class="tag grab">+50% pts</span>{% endif %}
@@ -28,6 +30,7 @@
       <p>{{ t.description }}</p>
       {% if t.notes %}<p class="notes"><strong>Our standard:</strong> {{ t.notes }}</p>{% endif %}
       <p class="muted small">{{ t.code }} · {{ FREQ_LABELS[t.frequency] }}{% if t.frequency != 'other' %} task{% endif %}{% if c %} · crossed off {{ c.done_on }} for {{ c.points }} pts{% endif %}</p>
+      {% if viewer.role == 'member' and t.frequency != 'other' %}<p class="small"><a href="{{ url_for('main.remind', task_id=t.id) }}">🔔 Nag me about this</a></p>{% endif %}
     </div>
   </details>
 </li>

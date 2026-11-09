@@ -1,0 +1,15 @@
+[Unit]
+Description=Send any chores reminders that are due
+
+[Service]
+Type=oneshot
+User=chores
+Group=chores
+EnvironmentFile=/etc/chores/chores.env
+WorkingDirectory=/opt/chores
+ExecStart=/opt/chores/.venv/bin/python manage.py notify
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/chores

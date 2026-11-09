@@ -5,6 +5,8 @@
     python manage.py set-password chris   change a password
     python manage.py import FILE.xlsx     apply Owner / Hours / Notes from the spreadsheet
     python manage.py backup [DIR]         copy the database safely while the app runs
+    python manage.py migrate              bring an existing database up to the current schema
+    python manage.py notify               send any task reminders that are due (run every minute)
     python manage.py serve                run with waitress (what systemd calls)
 """
 import argparse
@@ -16,7 +18,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from chores import create_app, db
+from chores import create_app, db, push, reminders
 from chores.auth import hash_password
 
 USERS = [  # username, display name, role, colour
@@ -56,7 +58,23 @@ def cmd_init(app, args):
             conn.execute("INSERT INTO users(username, display_name, password_hash, role, color) VALUES (?,?,?,?,?)",
                          (username, name, hash_password(pw), role, color))
         conn.commit()
+        push.public_key()
     print("Done.")
+
+
+def cmd_migrate(app, args):
+    with app.app_context():
+        conn = db.get_db()
+        db.init_schema(conn)
+        push.public_key()
+        print("Schema version", conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0])
+
+
+def cmd_notify(app, args):
+    with app.app_context():
+        sent = reminders.run_due()
+    if sent:     # this runs every minute, so stay quiet when there's nothing to report
+        print(f"Sent {sent} reminder(s).")
 
 
 def cmd_set_password(app, args):
@@ -117,6 +135,8 @@ def main():
     s = sub.add_parser("backup"); s.add_argument("dir", nargs="?", default="backups")
     s.add_argument("--keep", type=int, default=30, help="how many backups to keep (0 = all)")
     s.set_defaults(fn=cmd_backup)
+    sub.add_parser("migrate").set_defaults(fn=cmd_migrate)
+    sub.add_parser("notify").set_defaults(fn=cmd_notify)
     s = sub.add_parser("serve")
     s.add_argument("--host", default=os.environ.get("CHORES_HOST", "127.0.0.1"))
     s.add_argument("--port", type=int, default=int(os.environ.get("CHORES_PORT", "8087")))

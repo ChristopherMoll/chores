@@ -4,7 +4,7 @@
 
 Household task tracker for the Moll household. It runs on the Raspberry Pi and will be live at **https://chores.moll.casa**.
 
-The 109 task cards are dealt to Chris, Andrea, Shared, or Needs Volunteer. Each of you sees what's left today, this week and this month, crosses tasks off, and can check the scoreboard.
+The 109 task cards are dealt to Chris, Andrea, Shared, or Needs Volunteer. Each of you sees what's left today, this week and this month, crosses tasks off, and can check the scoreboard. Tasks can have due dates, and you can ask for a push notification on your iPhone if one isn't done in time.
 
 ```bash
 sudo ./deploy/install.sh        # on the Pi: installs, asks for the three passwords, starts the service

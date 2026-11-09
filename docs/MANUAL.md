@@ -32,7 +32,7 @@ What it should do:
 - **Be transparent.** Either of you can look at the other's dashboard in full detail. There's no private view.
 - **Be boring to run.** One Python process, one SQLite file, no build step. It sits quietly next to Plex and SABnzbd and backs itself up every night.
 
-Out of scope on purpose: notifications, reminders, mobile apps, multiple households and chat. Reminders in particular work against the "without being reminded" rule.
+Out of scope on purpose: native mobile apps, multiple households and chat. Reminders are strictly opt-in: nothing nags you unless you asked it to, for that specific task, because reminders handed out by default would work against the "without being reminded" rule.
 
 ---
 
@@ -57,9 +57,33 @@ Log in and you land on **My tasks**:
 | Daily | Every midnight (household time zone) | Dishes |
 | Weekly | Monday morning (configurable) | Laundry |
 | Monthly | On the 1st | Budget & Bills |
+| One-off | Never. Done once. | Renew passport |
 | Other / as needed | Never. Each log is a dated entry. | Taxes |
 
-A crossed-off task stays crossed off until its period ends, then it comes back as open.
+A crossed-off task stays crossed off until its period ends, then it comes back as open. A one-off stays on your list until the end of the day you cross it off, so you can undo a mistake, then drops off. Its history is kept.
+
+### Due days and times
+
+Any task can say when it's due: a date for a one-off, a day of the week for a weekly task, a day of the month for a monthly task (months without that day use their last day), or a time for a daily task. Set these on the task's edit page under **Manage**. Open tasks show a label like *Due Wed* or *By 8:00 pm*, turn red once overdue, and sort soonest first. A due day doesn't change when the task resets: a weekly task due Wednesday can still be crossed off until the week ends.
+
+### Nag me about this
+
+Tap a task's name, then **🔔 Nag me about this**, and choose when you'd like a push notification if it isn't done yet, such as "1 day before at 9:00 am" or "30 minutes before". You can add several to one task. They're yours alone: your partner doesn't get them, and you can set one on any task. A 🔔 marks tasks you have a reminder on.
+
+- A task needs a due date to count back from. Daily tasks are due at their due-by time, or the end of the day if none is set. Weekly and monthly tasks with no due day are due on the last day of their period. As-needed tasks and one-offs with no date can't have reminders.
+- If the task is crossed off by then, including by your partner on a Shared task, the reminder is skipped.
+- A reminder can't fire before the task's period opens, since you couldn't cross it off yet. "1 day before" on a weekly task due on the first day of the week arrives that first day instead.
+- If the Pi was off when a reminder came due, it's still sent if it's less than 2 hours late.
+
+### Turning on notifications on an iPhone
+
+iOS only allows push for web apps saved to the home screen, and needs iOS 16.4 or later.
+
+1. Open `https://chores.moll.casa` in Safari, tap **Share**, then **Add to Home Screen**.
+2. Open chores **from the new icon** and log in again. The home-screen app has its own login, separate from Safari.
+3. On your dashboard, tap **Enable notifications** and allow them. **Send a test** confirms it works.
+
+Do this on each device you want reminders on. Push needs the real HTTPS site, so it won't work over plain-HTTP LAN testing.
 
 ### Shared tasks
 
@@ -90,7 +114,7 @@ The **admin** account is kept separate for technical settings only (see [The adm
 All 109 cards (plus any you add) are in one table. For each row you can change:
 
 - **Owner:** Chris, Andrea, Shared, or Needs Volunteer.
-- **Frequency:** Daily, Weekly, Monthly, or Other.
+- **Frequency:** Daily, Weekly, Monthly, Once, or Other. Changing it clears the old due setting, since it no longer applies.
 - **Hours / mo:** your estimate of total monthly effort, including the noticing and planning, not just the doing.
 - **On:** untick to retire a task without losing its history. Retired tasks disappear from dashboards.
 
@@ -98,7 +122,7 @@ Change as many rows as you like, then press **Save changes**. The page warns you
 
 ### Editing a card
 
-Click a task's name to edit its code, name, group, "What it covers" text and **Our standard** notes. Write down what you've agreed counts as done there (how often, how well, by when), because it shows on the dashboard when someone opens the task.
+Click a task's name to edit its code, name, group, due setting, "What it covers" text and **Our standard** notes. Write down what you've agreed counts as done there (how often, how well, by when), because it shows on the dashboard when someone opens the task.
 
 **Delete** removes a task *and* its history for good. To keep the history, untick Active instead.
 
@@ -108,11 +132,9 @@ Click a task's name to edit its code, name, group, "What it covers" text and **O
 
 ### Importing the spreadsheet
 
-If you filled in `Household_Tasks.xlsx`, go to **Manage → Import spreadsheet** and upload it. Rows are matched by **Code**, and the importer reads Owner, Hours / Month, Notes, and Frequency and Active if those columns are present. Blank cells leave existing values alone. The same thing works from the command line: `python manage.py import Household_Tasks.xlsx`.
+If you filled in `Household_Tasks.xlsx`, go to **Manage → Import spreadsheet** and upload it. Rows are matched by **Code**, and the importer reads Owner, Hours / Month, Notes, and also Frequency, Active, Due Date, Due Weekday, Due Day and Due Time if those columns are present. Blank cells leave existing values alone. The same thing works from the command line: `python manage.py import Household_Tasks.xlsx`.
 
 **Export CSV** downloads the current state of every task. It's useful as a human-readable backup, and you can edit it in a spreadsheet and import it again.
-
-### Users
 
 ### The admin area
 
@@ -142,11 +164,11 @@ The game layer is deliberately light. It's there to make finishing things feel g
 
 ```
 minutes per occurrence = hours_month × 60 ÷ occurrences per month
-                         (daily 30.44, weekly 4.35, monthly 1, other 1)
+                         (daily 30.44, weekly 4.35, monthly 1, once 1, other 1)
 points = max(1, round(minutes ÷ 5))
 ```
 
-So a daily task estimated at 15 h/month is about 30 minutes a day, which earns 6 points. Tasks without an hours estimate get a flat 2 (daily), 5 (weekly), 10 (monthly) or 8 (other). A **Needs Volunteer** task earns 1.5× (rounded up).
+So a daily task estimated at 15 h/month is about 30 minutes a day, which earns 6 points. Tasks without an hours estimate get a flat 2 (daily), 5 (weekly), 10 (monthly) or 8 (once or other). A **Needs Volunteer** task earns 1.5× (rounded up).
 
 Points are **saved at the moment you cross something off**. If you later change the hours or re-deal a task, past scores don't move.
 
@@ -163,7 +185,7 @@ Points are **saved at the moment you cross something off**. If you later change 
 | 🙋 Volunteer | Picked up a Needs Volunteer task this week |
 | 🦸 Household hero | 5+ volunteer pickups this month |
 
-**Assigned load** on the scoreboard is each person's own hours plus half of all Shared hours. This is the spreadsheet's "fair, not identical" check, kept in view.
+**Assigned load** on the scoreboard is each person's own hours plus half of all Shared hours, not counting one-offs. This is the spreadsheet's "fair, not identical" check, kept in view.
 
 ---
 
@@ -181,26 +203,34 @@ Points are **saved at the moment you cross something off**. If you later change 
                                        ├─ waitress ─ Flask app "chores"  (systemd: chores.service)
                                        │                    │
                                        │                    ▼
-                                       └─ /var/lib/chores/chores.sqlite3   (+ nightly backups)
+                                       ├─ /var/lib/chores/chores.sqlite3   (+ nightly backups)
+                                       │                    ▲
+                                       │                    │
+                                       └─ manage.py notify  (chores-notify.timer, every minute)
+                                                  │  encrypted, signed with the VAPID key
+                                                  ▼
+                                            Apple push service ──► iPhone service worker (sw.js)
 ```
 
 ### Code layout
 
 ```
 chores/
-├── manage.py              CLI: init, set-password, import, backup, serve
+├── manage.py              CLI: init, migrate, set-password, import, backup, notify, serve
 ├── chores/
 │   ├── __init__.py        app factory, config from env, security headers
-│   ├── db.py              schema, connection, seeding
-│   ├── periods.py         time zone, period keys, week/month ranges
+│   ├── db.py              schema, migrations, connection, seeding
+│   ├── periods.py         time zone, period keys, week/month ranges, due dates
 │   ├── logic.py           ownership, toggling, points, streaks, badges (no request objects)
+│   ├── reminders.py       "nag me": when each reminder fires, sending the ones that are due
+│   ├── push.py            VAPID keys, device subscriptions, sending through pywebpush
 │   ├── auth.py            login, sessions, CSRF, lockout, password change
-│   ├── views.py           dashboard, person view, scoreboard, toggle endpoint
+│   ├── views.py           dashboard, person view, scoreboard, toggle, reminders, push endpoints
 │   ├── cms.py             Manage: deal grid, task editor, import/export (all logged-in users)
 │   ├── admin.py           Admin: system info, users, feed corrections (admin role only)
 │   ├── seed/tasks.json    the 109 cards
 │   ├── templates/         Jinja templates (server-rendered)
-│   └── static/            style.css, app.js, icon, web manifest
+│   └── static/            style.css, app.js, sw.js (service worker), icons, web manifest
 ├── deploy/                systemd units, Caddyfile, nginx alternative, install.sh, env example
 ├── docs/                  this manual + CHANGELOG
 └── tests/                 pytest suite
@@ -208,11 +238,14 @@ chores/
 
 ### Data model
 
-Four tables (see `chores/db.py`):
+Seven tables (see `chores/db.py`):
 
 - **users**: `username`, `display_name`, `password_hash` (scrypt), `role` (`member` or `admin`), `color`.
-- **tasks**: `code` (H01…), `grp`, `name`, `description`, `frequency`, `owner` (a member's username, `shared` or `volunteer`), `hours_month`, `notes`, `active`.
-- **completions**: one row per task per period. `period_key` encodes the period (`D2026-11-08`, `W2026-11-02`, `M2026-11`, or `O2026-11-08` for as-needed tasks). A `UNIQUE(task_id, period_key)` constraint means a task can't be crossed off twice in the same period, even by both of you tapping at once. Each row also records `user_id`, `done_on` (local date), `done_at` (UTC), and snapshots of `owner_at` and `points`.
+- **tasks**: `code` (H01…), `grp`, `name`, `description`, `frequency`, `owner` (a member's username, `shared` or `volunteer`), `hours_month`, `notes`, `active`, and one of `due_date`, `due_weekday`, `due_monthday` or `due_time` depending on the frequency.
+- **push_subscriptions**: one row per person per device: the push service `endpoint` and the device's encryption keys.
+- **reminders**: one person's "nag me" on one task: `amount`, `unit` (`minutes`, `hours` or `days`), and `at_time` for reminders counted in days.
+- **reminder_log**: which occurrence of each reminder has already been sent.
+- **completions**: one row per task per period. `period_key` encodes the period (`D2026-11-08`, `W2026-11-02`, `M2026-11`, `ONCE` for one-offs, or `O2026-11-08` for as-needed tasks). A `UNIQUE(task_id, period_key)` constraint means a task can't be crossed off twice in the same period, even by both of you tapping at once. Each row also records `user_id`, `done_on` (local date), `done_at` (UTC), and snapshots of `owner_at` and `points`.
 - **meta**: schema version, for future migrations.
 
 "Is this task done?" is just: *does a completion exist for this task with the current period's key?* Nothing is ever reset. A new period simply has no rows yet. History is kept for free.
@@ -223,6 +256,13 @@ Four tables (see `chores/db.py`):
 2. `logic.toggle` checks permissions, then inserts or deletes the completion for the current period.
 3. The JSON reply carries the new state and points. The page updates the row, the counter, the progress bar and the toast without reloading.
 4. Without JavaScript, the same button is an ordinary form post that redirects back.
+
+### How a reminder reaches a phone
+
+1. `chores-notify.timer` runs `manage.py notify` every minute. `reminders.run_due` works out when each reminder fires for the task's current occurrence.
+2. If that moment has passed within the last 2 hours and the task still isn't done, it records the reminder in `reminder_log` so it can't go out twice, then hands it to `push.deliver`.
+3. pywebpush encrypts the message to each of that person's devices and signs the request with the VAPID key. Apple delivers it to the phone, where `sw.js` shows the notification. Tapping it opens the dashboard at that task.
+4. A device Apple reports as gone (404 or 410) is deleted. If no device could be reached because of an error, the log entry is removed so the next run retries.
 
 ---
 
@@ -244,6 +284,10 @@ Four tables (see `chores/db.py`):
 
 **Gamification kept light.** Points scale with real effort, so many tiny tasks can't beat one big one. Volunteering is rewarded, because getting unowned work picked up is the most useful thing the game can encourage. There are no penalties, no lost points and no public shaming of an unfinished day.
 
+**A timer for reminders, not a thread in the web app.** A systemd oneshot works the same way as the nightly backup, restarts cleanly, and can't take the website down. Heavy imports are deferred, so a run with nothing to send is cheap.
+
+**Reminders can't fire before a period opens.** Crossing a task off only applies to its current period, so a nag about next week's occurrence couldn't be acted on, and might arrive right after you'd finished this week's.
+
 **Security for an internet-facing Pi.**
 - The app binds to `127.0.0.1`. Only Caddy is reachable from outside, and only over HTTPS.
 - Passwords are hashed with scrypt (Werkzeug default). There are no default passwords: `init` asks for them, or generates random ones.
@@ -251,6 +295,7 @@ Four tables (see `chores/db.py`):
 - Each IP is locked out for 15 minutes after 8 failed logins.
 - Strict security headers: CSP with no inline script or style, `X-Frame-Options: DENY`, nosniff, same-origin referrer. This is also why colours and bar widths are set from `data-` attributes by `app.js` rather than inline styles.
 - The systemd unit runs as an unprivileged `chores` user with a read-only filesystem except `/var/lib/chores`.
+- Push subscriptions are only accepted for known push services, so a logged-in user can't make the server call an arbitrary URL. The VAPID private key is readable only by the `chores` user.
 
 **Mobile first.** It'll mostly be used on phones, standing in the kitchen. The layout is single-column on small screens with large tap targets, and it can be added to the home screen (web manifest and icon included). Dark mode follows the phone's setting.
 
@@ -276,7 +321,8 @@ The installer:
 2. copies the code to `/opt/chores` and builds a virtualenv there,
 3. puts config in `/etc/chores/chores.env` (on first install only),
 4. on first install, creates `/var/lib/chores/chores.sqlite3`, seeds the 109 cards, and **asks for passwords** for chris, andrea and admin (press Enter to generate one; it's printed once),
-5. enables `chores.service` and the nightly `chores-backup.timer`.
+5. on an update, backs up the database and applies any schema changes,
+6. enables `chores.service`, the nightly `chores-backup.timer` and the every-minute `chores-notify.timer`.
 
 Check that it's running:
 
@@ -287,7 +333,7 @@ curl -I http://127.0.0.1:8087/login      # expect 200
 
 **Trying it on the LAN before going live:** edit `/etc/chores/chores.env` and set `CHORES_HOST=0.0.0.0` and `CHORES_SECURE_COOKIES=0`, then `sudo systemctl restart chores` and browse to `http://<pi-ip>:8087`. Put both settings back before exposing it to the internet.
 
-**Updating** to a new version: unpack the new code and run `sudo ./deploy/install.sh` again. It replaces the code but never touches the database or the env file. Read the [CHANGELOG](CHANGELOG.md) first.
+**Updating** to a new version: unpack the new code and run `sudo ./deploy/install.sh` again. It replaces the code, backs up the database, applies any schema changes, and leaves your settings in the env file alone. Read the [CHANGELOG](CHANGELOG.md) first.
 
 ---
 
@@ -315,16 +361,19 @@ curl -I http://127.0.0.1:8087/login      # expect 200
 | Restart | `sudo systemctl restart chores` |
 | Reset a password | `cd /opt/chores && sudo -u chores bash -c 'set -a; . /etc/chores/chores.env; .venv/bin/python manage.py set-password chris'` (or use admin → Users) |
 | Backup now | same pattern with `manage.py backup /var/lib/chores/backups` |
+| Reminder logs | `journalctl -u chores-notify -n 50` (silent unless something was sent or failed) |
 | List backups | `ls /var/lib/chores/backups` (the last 30 nightly copies are kept) |
 | Restore | `sudo systemctl stop chores && sudo -u chores cp /var/lib/chores/backups/chores-YYYYMMDD-HHMMSS.sqlite3 /var/lib/chores/chores.sqlite3 && sudo systemctl start chores` |
 
 Backups use SQLite's online-backup API, so they're consistent even while the app is in use. For off-Pi safety, have something you already run (rsync to a NAS, etc.) copy `/var/lib/chores/backups` somewhere else.
 
+The push keys, `vapid_private.pem` and `vapid_public.txt`, sit next to the database and aren't in those backups. If they're lost, the app makes a new pair and every device has to tap **Enable notifications** again.
+
 ---
 
 ## 10. Configuration reference
 
-All settings are environment variables, set in `/etc/chores/chores.env`.
+All settings are environment variables, set in `/etc/chores/chores.env`. Keep comments on their own lines, because systemd treats text after a value as part of the value.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -336,6 +385,7 @@ All settings are environment variables, set in `/etc/chores/chores.env`.
 | `CHORES_BEHIND_PROXY` | off | Trust `X-Forwarded-*` from Caddy/nginx (needed for correct client IPs in the login lockout) |
 | `CHORES_SECURE_COOKIES` | off | Send the session cookie only over HTTPS. **Turn on in production.** |
 | `CHORES_SECRET_KEY` | generated | Signs session cookies. Generated once into the instance folder if not set. Changing it logs everyone out. |
+| `CHORES_VAPID_SUBJECT` | `https://chores.moll.casa` | Identifies this server to push services. Must be an `https://` URL or a `mailto:` address. |
 
 ---
 
@@ -344,13 +394,15 @@ All settings are environment variables, set in `/etc/chores/chores.env`.
 The project is set up as a normal git repository, ready for GitHub and VS Code.
 
 ```bash
-git clone git@github.com:<you>/chores.git && cd chores
+git clone https://github.com/ChristopherMoll/chores.git && cd chores
 python3 -m venv .venv && . .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements-dev.txt
 python manage.py init            # creates ./instance/chores.sqlite3 (git-ignored)
 python manage.py serve           # http://127.0.0.1:8087
 pytest
 ```
+
+After pulling a version with schema changes, run `python manage.py migrate`.
 
 **In VS Code:** open the folder and accept the recommended extensions. Pick the `.venv` interpreter, which `.vscode/settings.json` already points at. Then:
 - **Run and Debug → "Chores: Flask (debug, auto-reload)"** gives breakpoints in Python and Jinja templates, and reloads on save.
@@ -369,7 +421,7 @@ pytest
 - Tests use `TODAY_OVERRIDE` in the app config to pin "today".
 - Keep the CSP intact: no inline `<script>` or `style=""`. Use a class, or a `data-` attribute that `app.js` applies.
 - New technical or admin-level settings go in `admin.py`, never in `cms.py` or `views.py`.
-- Schema changes: bump `SCHEMA_VERSION` in `db.py`, add a migration step to `init_schema`, and note it in the CHANGELOG.
+- Schema changes: bump `SCHEMA_VERSION` in `db.py`, add a migration step to `init_schema`, and note it in the CHANGELOG. `install.sh` runs `manage.py migrate` on every update.
 
 **Deploying from git** (optional, instead of copying a zip): clone the repo on the Pi, then `git pull && sudo ./deploy/install.sh` to update. The installer copies the code into `/opt/chores` and never touches the database.
 
@@ -380,5 +432,8 @@ pytest
 - **"Each of you" cards are one shared tick.** Self-Care and similar cards are meant to be held by each person for themselves, but as *Shared* tasks one tick covers both. If that matters, add a personal copy for each person (for example C22-C for Chris and C22-A for Andrea) and delete the shared one.
 - **Streaks use today's assignments.** If a daily task is re-dealt, past days are judged against the new assignment.
 - **The login lockout is in memory** and resets when the service restarts. That's fine for a two-person household.
-- **No reminders, by design** (see Goals). If you ever want a nudge, a daily summary email would be the least intrusive addition.
+- **Reminders are per task and opt-in** (see Goals). There's no "you have 3 left at 8 pm" summary. It would be a small addition to `reminders.py`.
+- **Each reminder fires once per occurrence.** It doesn't repeat until the task is done. Add several reminders if you want more than one nudge.
+- **Finished one-offs stay in the Manage grid** so their history is kept. Delete or turn them off to tidy up.
+- **Logging out doesn't turn off notifications on that device.** Use **Turn off** first. If someone else logs in and enables them, the device moves to that person.
 - Ideas: an end-of-week check-in page that walks through the cards (step 6 in the deck), a "pass this card" handoff with notice, and printing the current deal back onto cards.

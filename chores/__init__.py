@@ -9,7 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import auth, db, logic, periods
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 
 def _env_bool(name, default):
@@ -36,6 +36,7 @@ def create_app(test_config=None):
         DATABASE=os.environ.get("CHORES_DATABASE", str(Path(app.instance_path) / "chores.sqlite3")),
         TIMEZONE=os.environ.get("CHORES_TIMEZONE", "America/New_York"),
         WEEK_START=int(os.environ.get("CHORES_WEEK_START", "0")),     # 0 = Monday … 6 = Sunday
+        VAPID_SUBJECT=os.environ.get("CHORES_VAPID_SUBJECT", "https://chores.moll.casa"),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=_env_bool("CHORES_SECURE_COOKIES", False),
@@ -73,6 +74,13 @@ def create_app(test_config=None):
         if v is None or v == "":
             return "–"
         return f"{v:.1f}".rstrip("0").rstrip(".")
+
+    @app.template_filter("datefmt")
+    def fmt_date(d, fmt):
+        return d.strftime(fmt.replace("%-d", str(d.day)))     # %-d doesn't exist on Windows
+
+    app.add_template_filter(periods.format_time, "clock")
+    app.add_template_filter(periods.due_summary, "due_summary")
 
     @app.after_request
     def security_headers(resp):
