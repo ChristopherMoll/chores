@@ -119,6 +119,24 @@ def test_install_script_is_executable():
     assert os.access(ROOT / "deploy" / "install.sh", os.X_OK)
 
 
+def test_windows_installer_is_ascii():
+    """Windows PowerShell 5.1 misreads non-ASCII characters in a file without a BOM."""
+    (ROOT / "deploy" / "windows" / "install.ps1").read_bytes().decode("ascii")
+
+
+def test_env_file_loading(tmp_path, monkeypatch):
+    import manage
+
+    f = tmp_path / "chores.env"
+    f.write_bytes("\ufeff# a comment\nCHORES_TEST_A=C:\\ProgramData\\chores\n\nCHORES_TEST_B = x=y\n".encode())
+    monkeypatch.setenv("CHORES_TEST_A", "before")
+    monkeypatch.delenv("CHORES_TEST_B", raising=False)
+    manage.load_env_file(f)
+    assert os.environ["CHORES_TEST_A"] == "C:\\ProgramData\\chores"
+    assert os.environ["CHORES_TEST_B"] == "x=y"
+    monkeypatch.delenv("CHORES_TEST_B")
+
+
 # ------------------------------------------------------------- migration ---
 
 def test_v1_database_migrates_without_losing_history(tmp_path):

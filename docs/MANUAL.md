@@ -335,6 +335,50 @@ curl -I http://127.0.0.1:8087/login      # expect 200
 
 **Updating** to a new version: unpack the new code and run `sudo ./deploy/install.sh` again. It replaces the code, backs up the database, applies any schema changes, and leaves your settings in the env file alone. Read the [CHANGELOG](CHANGELOG.md) first.
 
+### Installing on Windows 11
+
+Everything above is for Linux. On Windows, including Windows 11 on a Raspberry Pi, `deploy/windows/install.ps1` does the same job with Task Scheduler.
+
+**Python** has to be installed for all users, so it ends up under `C:\Program Files`. Download the Windows installer for Python 3.13 from python.org, choosing **ARM64** on a Pi. Choose *Customize installation* and tick *Install Python for all users*.
+
+**Install or update** from an Administrator PowerShell. Git isn't needed:
+
+```powershell
+cd $env:TEMP
+Remove-Item chores-main -Recurse -Force -ErrorAction SilentlyContinue
+Invoke-WebRequest https://github.com/ChristopherMoll/chores/archive/refs/heads/main.zip -UseBasicParsing -OutFile chores.zip
+Expand-Archive chores.zip -DestinationPath . -Force
+powershell -ExecutionPolicy Bypass -File .\chores-main\deploy\windows\install.ps1
+```
+
+The first run asks for the three passwords. An update backs up the database and applies any schema changes first.
+
+| | |
+|---|---|
+| Code | `C:\Program Files\chores` |
+| Database, keys, settings (`chores.env`) | `C:\ProgramData\chores` |
+| Logs | `C:\ProgramData\chores\logs` (`serve.log`, `notify.log`, `backup.log`) |
+| Backups | `C:\ProgramData\chores\backups` (the last 30 are kept) |
+| Scheduled tasks | Task Scheduler → `chores`: `serve`, `notify` (every minute), `backup` (3:30 am) |
+
+**Restart** the app after changing `chores.env`:
+
+```powershell
+Stop-ScheduledTask -TaskPath \chores\ -TaskName serve; Start-ScheduledTask -TaskPath \chores\ -TaskName serve
+```
+
+If `serve` crashes, its task starts it again within 5 minutes.
+
+**Reset a password** from an Administrator PowerShell, or use admin → Users:
+
+```powershell
+& "C:\Program Files\chores\.venv\Scripts\python.exe" "C:\Program Files\chores\manage.py" --env-file C:\ProgramData\chores\chores.env set-password chris
+```
+
+**Restore a backup:** stop the `serve` and `notify` tasks, copy the backup over `C:\ProgramData\chores\chores.sqlite3`, delete any `chores.sqlite3-wal` and `chores.sqlite3-shm` beside it, then start `serve` and `notify` again.
+
+**Going live:** add the block from `deploy/Caddyfile` to your existing Caddyfile, without its comments, and reload Caddy. Keep the database off OneDrive and network drives; SQLite needs a local disk.
+
 ---
 
 ## 8. Going live at chores.moll.casa
