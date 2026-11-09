@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Admin</h1>
+    <p class="muted">Technical settings and accounts. Task management is under <a href="{{ url_for('manage.tasks') }}">Manage</a>, open to everyone.</p>
+  </div>
+  <div class="actions"><a class="btn" href="{{ url_for('admin.users') }}">Users</a></div>
+</div>
+
+<div class="two-col">
+  <section class="card">
+    <h2>System</h2>
+    <table class="kv">
+      <tr><th>App version</th><td>{{ info.version }}</td></tr>
+      <tr><th>Schema version</th><td>{{ info.schema }}</td></tr>
+      <tr><th>Python / Flask / SQLite</th><td>{{ info.python }} / {{ info.flask }} / {{ info.sqlite }}</td></tr>
+      <tr><th>Database</th><td><code>{{ info.db_path }}</code><br><span class="muted small">{{ (info.db_size / 1024)|round(1) }} KB</span></td></tr>
+      <tr><th>Rows</th><td>{{ counts.users }} users · {{ counts.tasks }} tasks · {{ counts.completions }} cross-offs</td></tr>
+    </table>
+  </section>
+  <section class="card">
+    <h2>Configuration</h2>
+    <p class="muted small">Read-only. Change these in <code>/etc/chores/chores.env</code> and restart the service.</p>
+    <table class="kv">
+      {% for label, value, var in settings %}
+      <tr><th>{{ label }}</th><td>{{ value }}<br><span class="muted small"><code>{{ var }}</code></span></td></tr>
+      {% endfor %}
+    </table>
+  </section>
+</div>
+{% endblock %}

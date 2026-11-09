@@ -1,0 +1,9 @@
+[Unit]
+Description=Nightly backup of the chores database
+
+[Service]
+Type=oneshot
+User=chores
+EnvironmentFile=/etc/chores/chores.env
+WorkingDirectory=/opt/chores
+ExecStart=/opt/chores/.venv/bin/python manage.py backup /var/lib/chores/backups --keep 30

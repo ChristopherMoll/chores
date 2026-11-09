@@ -1,0 +1,983 @@
+[
+ {
+  "code": "C01",
+  "group": "Caregiving",
+  "name": "Doctor & Dentist Visits",
+  "description": "Children's routine and non-urgent health care: checkups, vaccines, dental cleanings, eye tests, and specialist referrals.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C02",
+  "group": "Caregiving",
+  "name": "Medications & First Aid",
+  "description": "The household's medicines and minor medical care: prescriptions, vitamins, everyday remedies, and treating small injuries and illnesses.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C03",
+  "group": "Caregiving",
+  "name": "Sick Days",
+  "description": "Looking after a child who is too unwell for school or daycare, and handling the disruption that follows.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C04",
+  "group": "Caregiving",
+  "name": "Medical Paperwork",
+  "description": "The administration of the family's health care: bills, insurance claims, referrals, approvals, and health records.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C05",
+  "group": "Caregiving",
+  "name": "Morning Routine",
+  "description": "Getting children from waking up to out of the door, calm and on time, on school and daycare mornings.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C06",
+  "group": "Caregiving",
+  "name": "Bedtime Routine",
+  "description": "Getting children from the end of the evening to asleep, at a consistent time, on every ordinary night.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C07",
+  "group": "Caregiving",
+  "name": "Bath & Grooming",
+  "description": "Children's personal care: baths or showers, hair, nails, teeth, skin, and haircuts. Later, teaching them to do these for themselves.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C08",
+  "group": "Caregiving",
+  "name": "Night Wakings",
+  "description": "Whatever a child needs between bedtime and morning: feeds, bad dreams, illness, a wet bed, or simply not being able to sleep.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C09",
+  "group": "Caregiving",
+  "name": "Supervising Kids",
+  "description": "Being the adult who is on duty and paying attention when the children are at home and awake, outside the set routines.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C10",
+  "group": "Caregiving",
+  "name": "Homework & Learning",
+  "description": "Supporting children's schoolwork at home: homework, reading, projects, test preparation, supplies, and extra help when it is needed.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C11",
+  "group": "Caregiving",
+  "name": "Screens & Online Safety",
+  "description": "Children's use of phones, tablets, games, TV, and the internet: how much, what, when, and how they stay safe.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C12",
+  "group": "Caregiving",
+  "name": "Family Rules & Discipline",
+  "description": "The expectations children live by and what happens when those are not met, applied the same way by both of you.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C13",
+  "group": "Caregiving",
+  "name": "Emotional Check-ins",
+  "description": "Knowing how each child is really doing on the inside, and being the person they can bring their worries to.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C14",
+  "group": "Caregiving",
+  "name": "Friendships & Playdates",
+  "description": "Children's social lives: getting to know their friends, arranging time together, and helping them handle the ups and downs.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C15",
+  "group": "Caregiving",
+  "name": "Diapers & Potty",
+  "description": "Everything involved in a young child's toileting, from the first diaper through to being reliably dry day and night.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C16",
+  "group": "Caregiving",
+  "name": "Feeding Little Ones",
+  "description": "Feeding babies and toddlers: breast or bottle, pumping, introducing solid food, and meals and snacks through the day.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C17",
+  "group": "Caregiving",
+  "name": "Therapies & Extra Support",
+  "description": "Getting a child the additional help they need, whether developmental, learning, physical, or emotional, and coordinating everyone involved.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C18",
+  "group": "Caregiving",
+  "name": "Life Skills",
+  "description": "Teaching children what they need to become capable, considerate people: chores, manners, money, safety, and looking after themselves.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C19",
+  "group": "Caregiving",
+  "name": "Backup Care",
+  "description": "Handling the days when normal care falls through: a closed school, a sick sitter, bad weather, or a last-minute change.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C20",
+  "group": "Caregiving",
+  "name": "Aging Parents & Relatives",
+  "description": "Supporting older or unwell family members: their health, safety, money, housing, and company.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C21",
+  "group": "Caregiving",
+  "name": "Family Planning",
+  "description": "Decisions about whether and when to have children, and the contraception, fertility care, or appointments that follow from them.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "C22",
+  "group": "Caregiving",
+  "name": "Self-Care",
+  "description": "Your own physical and mental health: sleep, exercise, medical and dental care, and time to rest. Each of you holds this card for yourself.",
+  "frequency": "weekly",
+  "owner": "shared",
+  "active": true
+ },
+ {
+  "code": "C23",
+  "group": "Caregiving",
+  "name": "Your Own Clothes & Grooming",
+  "description": "Looking after your own appearance and wardrobe: haircuts, personal care, and clothes for work, home, and occasions. Each of you holds this for yourself.",
+  "frequency": "monthly",
+  "owner": "shared",
+  "active": true
+ },
+ {
+  "code": "C24",
+  "group": "Caregiving",
+  "name": "Your Own Friendships",
+  "description": "Keeping up the friendships that are yours and not the couple's. Each of you holds this card for yourself.",
+  "frequency": "monthly",
+  "owner": "shared",
+  "active": true
+ },
+ {
+  "code": "C25",
+  "group": "Caregiving",
+  "name": "Partner Check-in",
+  "description": "A regular conversation between the two of you about how the household is running and how each of you is doing. You hold this one together.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H01",
+  "group": "Home",
+  "name": "Laundry",
+  "description": "Everyone's clothes, from the hamper to back in the drawer. Covers everyday washing, stains, and special-care items. Bedding and towels are on the Beds & Linens card.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H02",
+  "group": "Home",
+  "name": "Dishes",
+  "description": "Getting every dish, pot, bottle, and lunch container clean and back in the cabinet, so the kitchen is ready for the next meal.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H03",
+  "group": "Home",
+  "name": "Trash & Recycling",
+  "description": "Getting trash, recycling, and compost out of the house and collected, including the wastebaskets in every room and the cans outside.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H04",
+  "group": "Home",
+  "name": "Groceries",
+  "description": "Keeping the household stocked with food and drink for the week's meals, snacks, and staples. Non-food supplies are on the Household Supplies card.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H05",
+  "group": "Home",
+  "name": "Weeknight Dinners",
+  "description": "The evening meal, Monday to Friday: deciding what it is, making it, and getting it on the table. Cleanup is on the Dishes card.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H06",
+  "group": "Home",
+  "name": "Breakfasts",
+  "description": "The weekday morning meal for everyone in the house, fitted into the time there really is before people leave.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H07",
+  "group": "Home",
+  "name": "Packed Lunches",
+  "description": "Lunches and snacks that leave the house for school, daycare, or work, including water bottles and the containers they travel in.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H08",
+  "group": "Home",
+  "name": "Weekend Meals",
+  "description": "Every meal from Friday night to Sunday night that is not a planned outing: breakfasts, lunches, dinners, and food for guests.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H09",
+  "group": "Home",
+  "name": "Kitchen Reset",
+  "description": "Returning the kitchen and eating area to a clean, clear state each day, beyond the dishes themselves.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H10",
+  "group": "Home",
+  "name": "Fridge & Pantry",
+  "description": "Keeping the fridge, freezer, and cabinets clean, organized, and free of expired food, so people can see what there is and less gets wasted.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H11",
+  "group": "Home",
+  "name": "Daily Tidying",
+  "description": "Keeping shared spaces picked up day to day: the things that land on floors, counters, stairs, and tables. Cleaning itself is on the Deep Cleaning card.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H12",
+  "group": "Home",
+  "name": "Deep Cleaning",
+  "description": "The regular proper clean of the home: bathrooms, floors, dusting, and the occasional bigger jobs such as windows, ovens, and behind furniture.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H13",
+  "group": "Home",
+  "name": "Household Supplies",
+  "description": "Everything the home runs on that is not food: toilet paper, soap, cleaning products, light bulbs, batteries, toiletries, and the like.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H14",
+  "group": "Home",
+  "name": "Maintenance & Repairs",
+  "description": "Keeping the home itself in working order: fixing what breaks and doing the routine upkeep that prevents bigger problems.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H15",
+  "group": "Home",
+  "name": "Yard & Plants",
+  "description": "Everything growing in and around the home: lawn, garden beds, trees, and houseplants. Also outdoor clearing such as leaves, snow, and ice.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H16",
+  "group": "Home",
+  "name": "Mail & Paperwork",
+  "description": "All the paper and mail that enters the home: letters, bills, school papers, forms, and the documents that need keeping.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H17",
+  "group": "Home",
+  "name": "Beds & Linens",
+  "description": "Clean sheets, towels, and bedding throughout the home, and replacing them when they wear out.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H18",
+  "group": "Home",
+  "name": "Seasonal Swap & Storage",
+  "description": "Moving clothes, gear, and decorations in and out with the seasons, and keeping closets, the garage, the attic, and other storage in order.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H19",
+  "group": "Home",
+  "name": "Furnishings & Decor",
+  "description": "The furniture and things that make the home work and feel like yours: seating, storage, lighting, rugs, curtains, and what goes on the walls.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H20",
+  "group": "Home",
+  "name": "Tech & Devices",
+  "description": "The household's technology: Wi-Fi, computers, phones, tablets, TV and streaming, printers, smart devices, and the accounts that go with them.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H21",
+  "group": "Home",
+  "name": "Home Safety",
+  "description": "Making the home safe and being ready for emergencies: alarms, first-aid supplies, locks, hazards, and a family plan.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H22",
+  "group": "Home",
+  "name": "Dog Daily Care",
+  "description": "The dogs' everyday needs: meals, fresh water, daily medications, walks, and picking up after them. Vet visits and grooming are on a separate card.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H23",
+  "group": "Home",
+  "name": "Hosting Guests",
+  "description": "Having people in your home, whether for dinner or a week's stay: getting ready, looking after them, and putting the house back afterward.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H24",
+  "group": "Home",
+  "name": "Kids' Clothes & Gear",
+  "description": "Making sure each child has clothes and shoes that fit and suit the season, plus the gear that school and activities require.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H25",
+  "group": "Home",
+  "name": "Baby Laundry",
+  "description": "The baby's own wash: clothes, sleepers, bibs, burp cloths, swaddles, crib sheets, and washable blankets, through to being back in the nursery.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H26",
+  "group": "Home",
+  "name": "Dehumidifier Tanks",
+  "description": "Keeping the home's two dehumidifiers running: emptying both tanks before they fill and shut off, and keeping the units clean.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "H27",
+  "group": "Home",
+  "name": "Air & Furnace Filters",
+  "description": "Replacing the home's five air filters and the furnace filter every six months, so the heating and cooling system runs cleanly and efficiently.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M01",
+  "group": "Magic",
+  "name": "Kids' Birthdays",
+  "description": "Celebrating each of your children's birthdays: the day itself, a party if there is one, and their present.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M02",
+  "group": "Magic",
+  "name": "Family Birthdays",
+  "description": "Remembering and marking the birthdays of your partner, relatives, and close friends.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M03",
+  "group": "Magic",
+  "name": "Gifts for Family",
+  "description": "Presents for the people in your immediate and extended family, for birthdays, holidays, and other occasions.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M04",
+  "group": "Magic",
+  "name": "Gifts for Others",
+  "description": "Presents and cards for people outside the family: children's party hosts, teachers, coaches, neighbors, colleagues, and friends.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M05",
+  "group": "Magic",
+  "name": "Holiday Planning",
+  "description": "The holidays and festivals your family celebrates through the year: where you will be, who with, and everything that makes the day.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M06",
+  "group": "Magic",
+  "name": "Holiday Cards",
+  "description": "The cards or greetings you send to family and friends each year, if you choose to send them.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M07",
+  "group": "Magic",
+  "name": "Family Traditions",
+  "description": "The rituals that make your family feel like itself, large and small: Friday pizza, the first-day-of-school photo, the annual trip.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M08",
+  "group": "Magic",
+  "name": "Make-Believe Visitors",
+  "description": "The tooth fairy, holiday gift-bringers, and any other magical figures your family keeps alive for young children.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M09",
+  "group": "Magic",
+  "name": "Photos & Memories",
+  "description": "Keeping the family's record: photos, videos, artwork, school keepsakes, and the things you will want to look back on.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M10",
+  "group": "Magic",
+  "name": "Thank-You Notes",
+  "description": "Thanking people properly for presents, hospitality, and kindness, on behalf of yourselves and your children.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M11",
+  "group": "Magic",
+  "name": "Small Gestures for Your Partner",
+  "description": "The everyday acts that show your partner you see them and care. Each of you holds this card for the other.",
+  "frequency": "weekly",
+  "owner": "shared",
+  "active": true
+ },
+ {
+  "code": "M12",
+  "group": "Magic",
+  "name": "Small Gestures for Kids",
+  "description": "The little things that make each child feel noticed and special, outside birthdays and holidays.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M13",
+  "group": "Magic",
+  "name": "Extended Family",
+  "description": "Keeping the family connected to grandparents, aunts, uncles, cousins, and in-laws on both sides.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M14",
+  "group": "Magic",
+  "name": "Family Fun Nights",
+  "description": "Regular time when the whole household does something enjoyable together at home: games, films, cooking, or a project.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M15",
+  "group": "Magic",
+  "name": "Celebrating Milestones",
+  "description": "Marking the moments that matter: first days, graduations, performances, promotions, and personal achievements for anyone in the family.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M16",
+  "group": "Magic",
+  "name": "Showing Up at Events",
+  "description": "Being present for children's games, concerts, assemblies, and ceremonies, so that someone they love is watching.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M17",
+  "group": "Magic",
+  "name": "Faith, Culture & Values",
+  "description": "Passing on what your family believes in and where it comes from: faith, heritage, language, food, and the principles you live by.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M18",
+  "group": "Magic",
+  "name": "Big Questions",
+  "description": "Children's questions about the hard and important things: bodies, where babies come from, death, money, difference, and what is in the news.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M19",
+  "group": "Magic",
+  "name": "Costumes & Dress-up Days",
+  "description": "Outfits for Halloween, school theme days, plays, recitals, and any day with a dress code announced at short notice.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M20",
+  "group": "Magic",
+  "name": "Seasonal Fun",
+  "description": "Making the most of each time of year: the beach, the pumpkin patch, sledding, fireworks, and local fairs.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M21",
+  "group": "Magic",
+  "name": "Anniversaries",
+  "description": "Marking your anniversary and the other dates that mean something to the two of you. You hold this one together.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "M22",
+  "group": "Magic",
+  "name": "Showing Up for Others",
+  "description": "Being there for friends, neighbors, and relatives in their big moments, hard and happy: illness, loss, a new baby, a move.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O01",
+  "group": "Out",
+  "name": "Budget & Bills",
+  "description": "The household's day-to-day money: knowing what comes in and goes out, paying every bill on time, and keeping both partners informed.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O02",
+  "group": "Out",
+  "name": "Taxes",
+  "description": "Everything needed to file the household's taxes accurately and on time, and to keep the records that support them.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O03",
+  "group": "Out",
+  "name": "Insurance",
+  "description": "All the household's cover: health, home or renters, car, life, disability, and anything else you hold. Includes renewals and claims.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O04",
+  "group": "Out",
+  "name": "Savings & Investing",
+  "description": "The household's longer-term money: an emergency fund, retirement, education, and saving toward the things you want.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O05",
+  "group": "Out",
+  "name": "Wills & Key Documents",
+  "description": "The legal and personal papers that protect your family: wills, guardianship, powers of attorney, life cover, beneficiaries, and identity documents.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O06",
+  "group": "Out",
+  "name": "Housing: Rent or Mortgage",
+  "description": "The home as a financial and legal commitment: lease or mortgage, the landlord or lender, property taxes, and the decision to stay, renew, or look elsewhere.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O07",
+  "group": "Out",
+  "name": "Family Calendar",
+  "description": "One shared, reliable picture of where everyone needs to be and when. This card is about keeping the calendar. The events themselves belong to other cards.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O08",
+  "group": "Out",
+  "name": "Car Care",
+  "description": "Keeping the household's vehicles safe, legal, and running: servicing, tires, registration, inspections, and fuel. Cleaning is on the Car Cleaning card.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O09",
+  "group": "Out",
+  "name": "Errands & Returns",
+  "description": "The small trips that keep life moving: returns, dry cleaning, the pharmacy, the post office, shoe repair, and similar stops.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O10",
+  "group": "Out",
+  "name": "Vet & Grooming",
+  "description": "The health care of the family's animals: checkups, vaccines, preventive treatments, illness, grooming, and their records. Daily medications are on the Dog Daily Care card.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O11",
+  "group": "Out",
+  "name": "School Drop-off & Pickup",
+  "description": "Getting children to and from school or daycare every day, on time, with what they need.",
+  "frequency": "daily",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O12",
+  "group": "Out",
+  "name": "Activity Rides",
+  "description": "Rides to and from everything outside school: practices, lessons, games, appointments, and parties.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O13",
+  "group": "Out",
+  "name": "School Forms & Enrollment",
+  "description": "The administration of school life: choosing and applying to schools, registration, permission slips, health forms, fees, and moves between schools.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O14",
+  "group": "Out",
+  "name": "School Communication",
+  "description": "Being the family's link with school or daycare: reading what they send, replying, and knowing how each child is doing.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O15",
+  "group": "Out",
+  "name": "School Events & Volunteering",
+  "description": "The family's part in the school community: class events, fundraisers, trips, committees, and requests for help or contributions.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O16",
+  "group": "Out",
+  "name": "Activity Sign-ups",
+  "description": "Choosing and arranging what children do outside school: sports, music, arts, clubs, and classes. Rides are on a separate card.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O17",
+  "group": "Out",
+  "name": "School Breaks & Summer",
+  "description": "Covering every day school is closed while adults are working: holidays, teacher workdays, mid-year breaks, and the long summer break.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O18",
+  "group": "Out",
+  "name": "Childcare",
+  "description": "Finding and managing the people and places that look after your children: daycare, a nanny, after-school care, and babysitters.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O19",
+  "group": "Out",
+  "name": "Travel Planning",
+  "description": "Organizing trips away from home, from a weekend with relatives to a big vacation: transportation, somewhere to stay, and the paperwork.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O20",
+  "group": "Out",
+  "name": "Packing & Unpacking",
+  "description": "Getting everyone's belongings ready for a trip or an outing, and dealing with all of it when you get home.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O21",
+  "group": "Out",
+  "name": "Weekend Plans",
+  "description": "What the family does with its free time at weekends and on days off, so it is neither empty nor overloaded.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O22",
+  "group": "Out",
+  "name": "Couple Time & Social Plans",
+  "description": "Time for the two of you as a couple, and your shared life with friends: date nights, dinners, parties, and get-togethers.",
+  "frequency": "weekly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O23",
+  "group": "Out",
+  "name": "Community & Giving",
+  "description": "The household's contribution beyond its own walls: charity, volunteering, voting, neighbors, and the groups you belong to.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O24",
+  "group": "Out",
+  "name": "Car Cleaning",
+  "description": "Keeping the car clean inside and out: clearing it out, vacuuming, wiping down, and washing the outside. Servicing and repairs are on the Car Care card.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "O25",
+  "group": "Out",
+  "name": "Baby Car Seat Cleaning",
+  "description": "Keeping the baby's car seat clean and safe to use: the cover, padding, buckle, straps, and shell, plus the vehicle seat underneath it.",
+  "frequency": "monthly",
+  "owner": "volunteer",
+  "active": true
+ },
+ {
+  "code": "W01",
+  "group": "Wild",
+  "name": "Moving House",
+  "description": "Relocating the household, from deciding to go through to being settled in the new place.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": false
+ },
+ {
+  "code": "W02",
+  "group": "Wild",
+  "name": "New Baby",
+  "description": "Preparing for and getting through the arrival of a child, by birth or adoption, and the first months that follow.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": false
+ },
+ {
+  "code": "W03",
+  "group": "Wild",
+  "name": "Job Change or Loss",
+  "description": "A major shift in one partner's work: a new job, a layoff, reduced hours, or starting a business.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": false
+ },
+ {
+  "code": "W04",
+  "group": "Wild",
+  "name": "Serious Illness or Injury",
+  "description": "A health crisis for someone in the household that changes what they can do for weeks, months, or longer.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": false
+ },
+ {
+  "code": "W05",
+  "group": "Wild",
+  "name": "Death in the Family",
+  "description": "The loss of someone close, and both the practical and the emotional work that follows.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": false
+ },
+ {
+  "code": "W06",
+  "group": "Wild",
+  "name": "Home Renovation",
+  "description": "A substantial building or remodeling project at home, from the first idea to the last snag.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": false
+ },
+ {
+  "code": "W07",
+  "group": "Wild",
+  "name": "Home Emergency",
+  "description": "A sudden event that damages the home or makes it unlivable: flood, fire, storm, break-in, or a long loss of power or water.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": false
+ },
+ {
+  "code": "W08",
+  "group": "Wild",
+  "name": "New Pet",
+  "description": "Bringing an animal into the family, from deciding whether to through its first months at home.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": false
+ },
+ {
+  "code": "W09",
+  "group": "Wild",
+  "name": "Big Career or Study Push",
+  "description": "A demanding stretch for one partner, such as a degree, a qualification, a launch, or a busy season, that takes them away from home life.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": false
+ },
+ {
+  "code": "W10",
+  "group": "Wild",
+  "name": "Passion Project Time",
+  "description": "Time for the pursuit that makes you feel most like yourself, beyond work and family: making, learning, playing, or building something. Each of you holds this card.",
+  "frequency": "other",
+  "owner": "volunteer",
+  "active": false
+ }
+]

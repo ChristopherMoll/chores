@@ -1,0 +1,11 @@
+[project]
+name = "chores"
+version = "1.1.0"
+description = "Household task tracker for the Moll household (chores.moll.casa)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["Flask>=3.0,<4", "waitress>=3.0,<4", "openpyxl>=3.1,<4"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

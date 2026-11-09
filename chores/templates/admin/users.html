@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<h1>Users</h1>
+<p class="muted">Three fixed accounts. Change display names and colours here, or set a new password for someone who's locked out.</p>
+{% for u in rows %}
+<form method="post" class="card form user-row">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="id" value="{{ u.id }}">
+  <div class="row">
+    <div class="who"><span class="avatar big" data-color="{{ u.color }}">{{ u.display_name[0] }}</span>
+      <div><b>{{ u.username }}</b><br><span class="muted small">{{ u.role }} · {{ u.n }} cross-offs</span></div></div>
+    <label>Display name <input name="display_name" value="{{ u.display_name }}" maxlength="40"></label>
+    <label class="w-color">Colour <input type="color" name="color" value="{{ u.color }}"></label>
+    <label>New password <input name="password" type="password" autocomplete="new-password" minlength="8" placeholder="leave blank to keep"></label>
+    <button class="btn">Save</button>
+  </div>
+</form>
+{% endfor %}
+{% endblock %}

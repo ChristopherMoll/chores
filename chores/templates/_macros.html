@@ -1,0 +1,40 @@
+{% macro task_row(r, own, viewer, kind='mine') %}
+{%- set t = r.task -%}
+{%- set c = r.completion -%}
+{%- set mine_to_undo = c and c.user_id == viewer.id -%}
+{%- set interactive = own and viewer.role == 'member' and (not r.done or mine_to_undo) -%}
+<li class="task{{ ' done' if r.done }}{{ ' other' if t.frequency == 'other' }}" data-task="{{ t.id }}">
+  <form method="post" action="{{ url_for('main.toggle', task_id=t.id) }}" class="tick-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button class="tick" {{ '' if interactive else 'disabled' }}
+      aria-label="{{ ('Undo ' if r.done else 'Cross off ') ~ t.name }}"
+      title="{% if r.done and not mine_to_undo %}Done by {{ c.doer }}{% elif r.done %}Undo{% else %}Cross off{% endif %}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7"/></svg>
+    </button>
+  </form>
+  <details class="task-body">
+    <summary>
+      <span class="task-name">{{ t.name }}</span>
+      <span class="task-meta">
+        <span class="tag grp-{{ t.grp|lower }}">{{ t.grp }}</span>
+        {% if t.owner == 'shared' %}<span class="tag shared">Shared</span>{% endif %}
+        {% if t.owner == 'volunteer' %}<span class="tag grab">+50% pts</span>{% endif %}
+        {% if t.hours_month %}<span class="tag plain">{{ t.hours_month|hours }} h/mo</span>{% endif %}
+        {% if r.done %}<span class="doneby" data-color="{{ c.doer_color }}">✓ {{ c.doer }}</span>
+        {% elif t.frequency == 'other' and r.last_on %}<span class="muted small">last {{ r.last_on }}</span>{% endif %}
+      </span>
+    </summary>
+    <div class="task-detail">
+      <p>{{ t.description }}</p>
+      {% if t.notes %}<p class="notes"><strong>Our standard:</strong> {{ t.notes }}</p>{% endif %}
+      <p class="muted small">{{ t.code }} · {{ FREQ_LABELS[t.frequency] }}{% if t.frequency != 'other' %} task{% endif %}{% if c %} · crossed off {{ c.done_on }} for {{ c.points }} pts{% endif %}</p>
+    </div>
+  </details>
+</li>
+{% endmacro %}
+
+{% macro bar(p, cls='') %}
+<div class="bar {{ cls }}" role="progressbar" aria-valuenow="{{ p.pct }}" aria-valuemin="0" aria-valuemax="100">
+  <span data-pct="{{ p.pct }}"></span>
+</div>
+{% endmacro %}

@@ -1,0 +1,25 @@
+[Unit]
+Description=Chores household task tracker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=chores
+Group=chores
+EnvironmentFile=/etc/chores/chores.env
+WorkingDirectory=/opt/chores
+ExecStart=/opt/chores/.venv/bin/python manage.py serve
+Restart=on-failure
+RestartSec=3
+
+# Hardening: the app only needs its own data directory.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/chores
+MemoryMax=200M
+
+[Install]
+WantedBy=multi-user.target

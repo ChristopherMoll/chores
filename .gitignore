@@ -1,0 +1,84 @@
+# ---------------------------------------------------------------------------
+# chores: never commit live data or secrets
+# ---------------------------------------------------------------------------
+# local database + generated secret_key
+instance/
+# output of `manage.py backup`
+backups/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+secret_key
+.env
+.env.*
+*.env
+!deploy/chores.env.example
+# filled-in spreadsheets with real assignments
+*.xlsx
+*.xlsm
+# Excel lock files
+~$*
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.python-version
+*.egg-info/
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+
+# Testing / tooling
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+
+# ---------------------------------------------------------------------------
+# Editors / IDEs
+# ---------------------------------------------------------------------------
+# VS Code: share the project config, ignore personal state
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+.history/
+
+# Visual Studio (full IDE / Python Tools)
+.vs/
+*.pyproj.user
+*.suo
+*.user
+
+# JetBrains
+.idea/
+
+# ---------------------------------------------------------------------------
+# OS clutter
+# ---------------------------------------------------------------------------
+.DS_Store
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs / scratch
+*.log
+*.tmp
+*.swp
+*~

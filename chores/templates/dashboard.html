@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "_macros.html" import task_row, bar with context %}
+{% block title %}{{ 'My tasks' if own else who.display_name }}{% endblock %}
+{% block content %}
+{% set p = dash.progress %}
+<section class="hero" data-color="{{ who.color }}">
+  <div>
+    <p class="eyebrow">{{ today.strftime('%A, %B %-d') }}</p>
+    <h1>{% if own %}Hi, {{ who.display_name }}{% else %}{{ who.display_name }}'s progress{% endif %}</h1>
+    {% set left = p.daily.total - p.daily.done %}
+    <p class="lede">
+      {% if p.daily.total == 0 %}No daily tasks dealt {{ 'to you' if own else 'yet' }}.
+      {% elif left == 0 %}Everything for today is done. 🎉
+      {% else %}{{ left }} of {{ p.daily.total }} daily task{{ 's' if p.daily.total != 1 }} left today.{% endif %}
+    </p>
+    {% if not own %}
+    <p class="switch">{% for m in members if m.id != who.id %}<a href="{{ url_for('main.person', username=m.username) }}">See {{ m.display_name }} →</a>{% endfor %}</p>
+    {% endif %}
+  </div>
+  <div class="hero-stats">
+    <div class="stat"><b>{{ streak }}</b><span>day streak{{ ' 🔥' if streak >= 3 }}</span></div>
+    <div class="stat"><b>{{ week.points }}</b><span>pts this week</span></div>
+    <div class="stat"><b>{{ badges|selectattr('earned')|list|length }}</b><span>badges</span></div>
+  </div>
+</section>
+
+{% if own %}{% for m in members if m.id != who.id %}
+  <p class="peek"><a href="{{ url_for('main.person', username=m.username) }}">How's {{ m.display_name }} doing? →</a></p>
+{% endfor %}{% endif %}
+
+<div class="periods">
+{% for f in ('daily', 'weekly', 'monthly') %}
+  {% set rows = dash.board[f] %}
+  <section class="card period" data-period="{{ f }}">
+    <header>
+      <h2>{{ FREQ_LABELS[f] }}</h2>
+      <span class="count"><b class="n-done">{{ p[f].done }}</b>/<span class="n-total">{{ p[f].total }}</span></span>
+    </header>
+    {{ bar(p[f]) }}
+    {% if f != 'daily' %}<p class="muted small resets">Resets in {{ days_left[f] }} day{{ 's' if days_left[f] != 1 }}</p>{% endif %}
+    {% if rows %}
+      <ul class="tasks">{% for r in rows %}{{ task_row(r, own, g.user) }}{% endfor %}</ul>
+    {% else %}
+      <p class="empty muted">Nothing here yet. <a href="{{ url_for('manage.tasks') }}">Deal some tasks</a>.</p>
+    {% endif %}
+  </section>
+{% endfor %}
+</div>
+
+{% set grab_rows = dash.grabs.daily + dash.grabs.weekly + dash.grabs.monthly %}
+{% if grab_rows %}
+<section class="card grabs">
+  <header>
+    <h2>Up for grabs <span class="pill">{{ dash.grabs_open }} open</span></h2>
+    <p class="muted small">Needs Volunteer tasks. Either of you can take one, and you get 50% bonus points for it.</p>
+  </header>
+  <ul class="tasks">{% for r in grab_rows %}{{ task_row(r, own, g.user, 'grab') }}{% endfor %}</ul>
+</section>
+{% endif %}
+
+{% set other_rows = dash.board.other + dash.grabs.other %}
+{% if other_rows %}
+<section class="card">
+  <details class="fold">
+    <summary><h2>As needed <span class="pill">{{ other_rows|length }}</span></h2>
+      <span class="muted small">No schedule. Log one when you do it.</span></summary>
+    <ul class="tasks">{% for r in other_rows|sort(attribute='task.name') %}{{ task_row(r, own, g.user) }}{% endfor %}</ul>
+  </details>
+</section>
+{% endif %}
+
+<div class="two-col">
+  <section class="card">
+    <h2>Last 14 days</h2>
+    <p class="muted small">Share of {{ 'your' if own else who.display_name ~ "'s" }} daily tasks done each day.</p>
+    <div class="heat">
+      {% for h in history %}
+        <div class="heat-cell lvl-{{ (h.pct // 25) if h.total else 'x' }}" title="{{ h.date.strftime('%a %b %-d') }}: {{ h.done }}/{{ h.total }}">
+          <span>{{ h.date.strftime('%-d') }}</span></div>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="card">
+    <h2>Badges</h2>
+    <ul class="badges">
+      {% for b in badges %}<li class="badge{{ ' earned' if b.earned }}" title="{{ b.how }}"><span class="emoji">{{ b.emoji }}</span><span>{{ b.title }}</span></li>{% endfor %}
+    </ul>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Recent activity</h2>
+  {% if activity %}
+  <ul class="feed">{% for a in activity %}
+    <li><span class="feed-date">{{ a.done_on }}</span> {{ a.task_name }} <span class="muted">· {{ a.points }} pts{{ ' · volunteered' if a.owner_at == 'volunteer' }}</span></li>
+  {% endfor %}</ul>
+  {% else %}<p class="muted">Nothing crossed off yet.</p>{% endif %}
+</section>
+{% endblock %}

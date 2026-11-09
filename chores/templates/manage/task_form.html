@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ 'New task' if new else task.name }}{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('manage.tasks') }}" class="small">← All tasks</a></p>
+<h1>{{ 'New task' if new else 'Edit ' ~ task.name }}</h1>
+<form method="post" class="card form">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <div class="row">
+    <label class="w-code">Code <input name="code" value="{{ task.code }}" required maxlength="8"></label>
+    <label class="grow">Name <input name="name" value="{{ task.name }}" required maxlength="80"></label>
+  </div>
+  <div class="row">
+    <label>Group <select name="grp">{% for gname in groups %}<option {{ 'selected' if task.grp == gname }}>{{ gname }}</option>{% endfor %}</select></label>
+    <label>Frequency <select name="frequency">{% for fr in freqs %}<option value="{{ fr }}" {{ 'selected' if task.frequency == fr }}>{{ fr|capitalize }}</option>{% endfor %}</select></label>
+    <label>Owner <select name="owner">{% for v, l in owners %}<option value="{{ v }}" {{ 'selected' if task.owner == v }}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="w-hours">Hours / month <input name="hours_month" value="{{ '' if task.hours_month is none else task.hours_month|hours }}" inputmode="decimal"></label>
+  </div>
+  <label>What it covers <textarea name="description" rows="4">{{ task.description }}</textarea></label>
+  <label>Our standard (notes) <textarea name="notes" rows="3" placeholder="How often, how well, by when: what you've agreed counts as done.">{{ task.notes }}</textarea></label>
+  <label class="check"><input type="checkbox" name="active" {{ 'checked' if task.active }}> Active (shows on dashboards)</label>
+  <div class="form-actions">
+    <button class="btn primary">{{ 'Add task' if new else 'Save' }}</button>
+    <a href="{{ url_for('manage.tasks') }}" class="btn">Cancel</a>
+  </div>
+</form>
+{% if not new %}
+<form method="post" action="{{ url_for('manage.task_delete', task_id=task.id) }}" class="danger-zone">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <p class="muted small">Deleting removes the task and its {{ completions }} cross-off{{ 's' if completions != 1 }} for good. To retire a task but keep its history, untick Active instead.</p>
+  <button class="btn danger" data-confirm="Delete {{ task.name }} and its history?">Delete task</button>
+</form>
+{% endif %}
+{% endblock %}

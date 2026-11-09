@@ -1,0 +1,7 @@
+# /etc/caddy/Caddyfile: Caddy gets and renews the HTTPS certificate on its own.
+# Needs ports 80 and 443 forwarded to the Pi and chores.moll.casa pointing at your IP.
+chores.moll.casa {
+	encode gzip
+	reverse_proxy 127.0.0.1:8087
+	header Strict-Transport-Security "max-age=31536000"
+}

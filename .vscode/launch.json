@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Chores: Flask (debug, auto-reload)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "flask",
+      "args": ["--app", "chores:create_app", "run", "--debug", "--port", "8087"],
+      "env": { "CHORES_INSTANCE": "${workspaceFolder}/instance" },
+      "jinja": true,
+      "justMyCode": true
+    },
+    {
+      "name": "Chores: waitress (like production)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/manage.py",
+      "args": ["serve"],
+      "env": { "CHORES_INSTANCE": "${workspaceFolder}/instance" }
+    },
+    {
+      "name": "Chores: init local database",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/manage.py",
+      "args": ["init"],
+      "console": "integratedTerminal",
+      "env": { "CHORES_INSTANCE": "${workspaceFolder}/instance" }
+    }
+  ]
+}
