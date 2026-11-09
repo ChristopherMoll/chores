@@ -4,7 +4,10 @@ All notable changes to this project are recorded here. Versions follow [semantic
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+- **Windows install:** `deploy/windows/install.ps1` installs or updates the app on Windows 11, including on a Raspberry Pi, using Task Scheduler instead of systemd. The app runs as the low-privilege LOCAL SERVICE account.
+- `manage.py --env-file` and `--log-file`, for running without systemd.
+- GitHub Actions now also runs the tests on Windows x64 and Windows on ARM64.
 
 ## [1.2.0] - 2026-11-08
 

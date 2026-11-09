@@ -10,6 +10,8 @@ The 109 task cards are dealt to Chris, Andrea, Shared, or Needs Volunteer. Each 
 sudo ./deploy/install.sh        # on the Pi: installs, asks for the three passwords, starts the service
 ```
 
+On a Pi running Windows 11, use `deploy\windows\install.ps1` instead: see [MANUAL § Installing on Windows 11](docs/MANUAL.md#installing-on-windows-11).
+
 Then set up HTTPS by following [docs/MANUAL.md § Going live](docs/MANUAL.md#8-going-live-at-choresmollcasa).
 
 - **Manual** (goals, how to use it, architecture, design choices, operations): [docs/MANUAL.md](docs/MANUAL.md)

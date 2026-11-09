@@ -125,8 +125,28 @@ def cmd_serve(app, args):
     serve(app, host=args.host, port=args.port, threads=4, ident="chores")
 
 
+def load_env_file(path):
+    """Load KEY=VALUE settings. Windows has no systemd EnvironmentFile to do this for us."""
+    for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if line and not line.startswith(("#", ";")) and "=" in line:
+            key, value = line.split("=", 1)
+            os.environ[key.strip()] = value.strip()
+
+
 def main():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    # Handled first, because the defaults for `serve` below read the environment.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--env-file", help="read settings from this KEY=VALUE file")
+    common.add_argument("--log-file", help="append output to this file (scheduled tasks have no console)")
+    early, _ = common.parse_known_args()
+    if early.env_file:
+        load_env_file(early.env_file)
+    if early.log_file:
+        sys.stdout = sys.stderr = open(early.log_file, "a", encoding="utf-8", buffering=1)
+
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+                                parents=[common])
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("init"); s.add_argument("--password", help="use one password for every new user (testing)")
     s.set_defaults(fn=cmd_init)
