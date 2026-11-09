@@ -74,9 +74,10 @@ $Python = Join-Path $App ".venv\Scripts\python.exe"
 Assert-Ok "Creating the virtualenv"
 # Not fatal: a rollback has to work even if PyPI is what broke the update.
 & $Python -m pip install -q --upgrade pip
-# --prefer-binary: on ARM64 the newest cryptography can lag behind on prebuilt wheels,
-# and building it from source needs a Rust and C compiler toolchain.
-& $Python -m pip install -q --prefer-binary -r (Join-Path $App "requirements.txt")
+# --only-binary: building cryptography from source needs Rust, a C compiler and OpenSSL.
+# Its Windows ARM64 wheels stopped at 46.0.3, so there pip picks the newest pywebpush that
+# accepts that version. --prefer-binary alone still tries the source build.
+& $Python -m pip install -q --prefer-binary --only-binary=cryptography -r (Join-Path $App "requirements.txt")
 Assert-Ok "Installing dependencies"
 # LOCAL SERVICE can't write bytecode here, so compile it now to keep the every-minute run fast.
 & $Python -m compileall -q (Join-Path $App "chores")
