@@ -11,6 +11,9 @@ def test_installer_repairs_existing_files_and_preserves_future_inheritance(tmp_p
     windows = Path(__file__).resolve().parents[1] / "deploy/windows"
     env = dict(os.environ, CHORES_ACL_TEST_DIR=str(tmp_path / "data"),
                CHORES_ACL_INSTALLER=str(windows / "install.ps1"), CHORES_ACL_REPAIR=str(windows / "repair-update.ps1"))
+    # GitHub Actions runs steps in PowerShell 7, whose module paths break Windows PowerShell.
+    # Without the variable, powershell.exe uses its own defaults. os.environ keys are upper-case here.
+    env.pop("PSMODULEPATH", None)
     script = r'''
 $ErrorActionPreference = "Stop"
 $Data = $env:CHORES_ACL_TEST_DIR
