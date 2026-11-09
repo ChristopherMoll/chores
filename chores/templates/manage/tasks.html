@@ -1,62 +1,24 @@
-{% extends "base.html" %}
-{% from "_macros.html" import mole %}
+{% extends 'base.html' %}
+{% from '_macros.html' import mole, icon with context %}
 {% block title %}Manage tasks{% endblock %}
-{% block main_class %}wrap wide{% endblock %}
+{% block main_class %}wrap management-wrap{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div class="mole-note">
-    {{ mole('default', 'lg') }}
-    <div>
-      <h1>Manage tasks</h1>
-      <p class="muted">Deal cards, set frequency and hours, then hit Save. Click a task name to edit its text.</p>
-    </div>
-  </div>
-  <div class="actions">
-    <a class="btn" href="{{ url_for('manage.import_tasks') }}">Import spreadsheet</a>
-    <a class="btn" href="{{ url_for('manage.export_csv') }}">Export CSV</a>
-    <a class="btn primary" href="{{ url_for('manage.task_new') }}">+ New task</a>
-  </div>
+<div class="page-head"><div><p class="eyebrow">A little planning</p><h1>A lighter week starts here.</h1><p class="muted">Make room for what matters. Find a rhythm that works for both of you.</p></div><div class="actions"><details class="tools-menu"><summary class="btn">Task tools</summary><div class="menu-pop"><a href="{{ url_for('manage.import_tasks') }}">Import spreadsheet</a><a href="{{ url_for('manage.export_csv') }}">Export CSV</a></div></details><a class="btn primary" href="{{ url_for('manage.task_new', back=request.full_path) }}">{{ icon('plus') }} New task</a></div></div>
+<section class="load-overview" aria-label="Estimated assigned effort"><div class="load-overview-heading"><h2>A little balance.</h2><span class="muted small" data-load-caption>Estimated hours per month · half of shared work each</span></div><div class="load-people">{% for member in members %}<div class="load-person"><span class="avatar" data-color="{{ member.color }}">{{ member.display_name[0] }}</span><span>{{ member.display_name }}</span><strong data-load-for="{{ member.username }}">{{ loads[member.username].total|hours }}</strong><span class="muted small">h/month</span></div>{% endfor %}</div><p class="muted small">{% if missing_estimates %}{{ missing_estimates }} active task{{ 's' if missing_estimates != 1 }} still need{{ '' if missing_estimates != 1 else 's' }} an effort estimate. {% endif %}One-off tasks are excluded. Estimates are a starting point for a conversation.</p></section>
+<form method="get" class="filters" aria-label="Filter tasks"><label class="search-field">{{ icon('search') }}<input name="q" value="{{ f.q }}" placeholder="Find a task…" aria-label="Search tasks"></label><label class="sr-only" for="filter-group">Group</label><select name="grp" id="filter-group"><option value="">All groups</option>{% for group in groups %}<option {{ 'selected' if f.grp == group }}>{{ group }}</option>{% endfor %}</select><label class="sr-only" for="filter-frequency">Frequency</label><select name="frequency" id="filter-frequency"><option value="">Any schedule</option>{% for fr in freqs %}<option value="{{ fr }}" {{ 'selected' if f.frequency == fr }}>{{ {'other':'As needed','once':'One-off'}.get(fr, fr|capitalize) }}</option>{% endfor %}</select><label class="sr-only" for="filter-owner">Owner</label><select name="owner" id="filter-owner"><option value="">Anyone</option>{% for value,label in owners %}<option value="{{ value }}" {{ 'selected' if f.owner == value }}>{{ label }}</option>{% endfor %}</select><label class="sr-only" for="filter-active">Task visibility</label><select name="active" id="filter-active"><option value="">Included + archived</option><option value="1" {{ 'selected' if f.active == '1' }}>Included only</option><option value="0" {{ 'selected' if f.active == '0' }}>Archived only</option></select><button class="btn">Apply</button>{% if f.values()|select|list %}<a href="{{ url_for('manage.tasks') }}" class="text-action">Clear</a>{% endif %}</form>
+<div class="management-workspace">
+<div class="management-list">
+<div class="section-heading"><h2>Manage tasks <span class="muted small">{{ rows|length }} shown</span></h2><span class="muted small">Select a name for the full details.</span></div>
+<form method="post" action="{{ url_for('manage.tasks_bulk') }}" class="deal" data-loads='{{ loads|tojson }}'>
+<input type="hidden" name="csrf" value="{{ csrf_token() }}">
+<div class="bulk-tools" hidden data-bulk-tools><label><input type="checkbox" data-select-all> Select all shown</label><span data-selected-count>0 selected</span><select data-bulk-owner aria-label="Assign selected tasks"><option value="">Assign selected to…</option>{% for value,label in owners %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select><button type="button" class="btn" data-apply-owner>Apply to selected</button></div>
+<div class="table-wrap"><table class="grid"><caption class="sr-only">Household task assignments and schedules</caption><thead><tr><th class="selection-cell"><span class="sr-only">Select</span></th><th scope="col">Task</th><th scope="col">Owner</th><th scope="col">Repeats</th><th scope="col">Hours / month</th><th scope="col">Include</th></tr></thead><tbody>
+{% for t in rows %}<tr class="{{ 'off' if not t.active }}" data-grid-row data-task-id="{{ t.id }}"><td class="selection-cell" data-label="Select"><input type="checkbox" data-row-select aria-label="Select {{ t.name }}"><input type="hidden" name="id" value="{{ t.id }}"></td><td class="task-cell"><a href="{{ url_for('manage.task_edit', task_id=t.id, back=request.full_path) }}" class="tname" data-task-editor>{{ t.name }} {{ icon('chevron') }}</a><span class="task-cell-meta">{{ t.grp }} · {{ t.code }}{% if t|due_summary %} · Due {{ t|due_summary }}{% endif %}</span></td><td data-label="Owner"><select name="owner_{{ t.id }}" class="owner-sel" data-owner="{{ t.owner }}" aria-label="Owner for {{ t.name }}">{% for value,label in owners %}<option value="{{ value }}" {{ 'selected' if t.owner == value }}>{{ label }}</option>{% endfor %}</select></td><td data-label="Repeats"><select name="frequency_{{ t.id }}" aria-label="Schedule for {{ t.name }}">{% for fr in freqs %}<option value="{{ fr }}" {{ 'selected' if t.frequency == fr }}>{{ {'other':'As needed','once':'One-off'}.get(fr, fr|capitalize) }}</option>{% endfor %}</select></td><td data-label="Hours / month"><input name="hours_{{ t.id }}" value="{{ '' if t.hours_month is none else t.hours_month|hours }}" type="number" min="0" max="744" step="0.01" inputmode="decimal" class="hours" aria-label="Hours per month for {{ t.name }}"></td><td data-label="Include"><input type="checkbox" name="active_{{ t.id }}" {{ 'checked' if t.active }} aria-label="Include {{ t.name }} in task lists"></td></tr>
+{% else %}<tr><td colspan="6"><div class="empty-state">{{ mole('question') }}<h3>No tasks found.</h3><p>Try a different search or <a href="{{ url_for('manage.tasks') }}">clear the filters</a>.</p></div></td></tr>{% endfor %}
+</tbody></table></div>
+<div class="savebar"><span class="small" data-dirty-note role="status">All changes saved.</span><div class="actions"><button type="button" class="btn" data-discard hidden>Discard changes</button><button class="btn primary" data-grid-save>Save changes</button></div></div>
+<p class="muted small">Changing a task's schedule clears due settings that no longer apply. Uncheck Include to archive a task and keep its history.</p>
+</form></div>
+<aside class="task-editor" id="task-editor" hidden aria-label="Task editor"><div class="editor-top"><span class="eyebrow">Task details</span><button class="icon-button" type="button" data-close-editor aria-label="Close task editor">×</button></div><div data-task-editor-body></div></aside>
 </div>
-
-<div class="chips">
-  {% for value, label in owners %}
-    {% set s = summary.get(value) %}
-    <a class="chip{{ ' on' if f.owner == value }}" href="?owner={{ value }}">{{ label }} <b>{{ s.n if s else 0 }}</b> <span class="muted">{{ (s.h if s else 0)|hours }} h</span></a>
-  {% endfor %}
-</div>
-
-<form method="get" class="filters">
-  <input name="q" value="{{ f.q }}" placeholder="Search…" aria-label="Search">
-  <select name="grp" aria-label="Group"><option value="">All groups</option>{% for gname in groups %}<option {{ 'selected' if f.grp == gname }}>{{ gname }}</option>{% endfor %}</select>
-  <select name="frequency" aria-label="Frequency"><option value="">Any frequency</option>{% for fr in freqs %}<option value="{{ fr }}" {{ 'selected' if f.frequency == fr }}>{{ fr|capitalize }}</option>{% endfor %}</select>
-  <select name="owner" aria-label="Owner"><option value="">Anyone</option>{% for v, l in owners %}<option value="{{ v }}" {{ 'selected' if f.owner == v }}>{{ l }}</option>{% endfor %}</select>
-  <select name="active" aria-label="Active"><option value="">Active + off</option><option value="1" {{ 'selected' if f.active == '1' }}>Active only</option><option value="0" {{ 'selected' if f.active == '0' }}>Turned off</option></select>
-  <button class="btn">Filter</button>
-  {% if f.values()|select|list %}<a href="{{ url_for('manage.tasks') }}" class="small">clear</a>{% endif %}
-</form>
-
-<form method="post" action="{{ url_for('manage.tasks_bulk') }}" class="deal">
-  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-  <div class="table-wrap">
-  <table class="grid">
-    <thead><tr><th>Code</th><th>Task</th><th>Owner</th><th>Frequency</th><th>Hours / mo</th><th title="Active">On</th></tr></thead>
-    <tbody>
-    {% for t in rows %}
-      <tr class="{{ 'off' if not t.active }}">
-        <td class="code"><input type="hidden" name="id" value="{{ t.id }}">{{ t.code }}</td>
-        <td><a href="{{ url_for('manage.task_edit', task_id=t.id) }}" class="tname">{{ t.name }}</a>
-          <span class="tag grp-{{ t.grp|lower }}">{{ t.grp }}</span>{% if t|due_summary %} <span class="tag plain">⏱ {{ t|due_summary }}</span>{% endif %}{% if t.notes %} <span class="muted small" title="{{ t.notes }}">📝</span>{% endif %}</td>
-        <td><select name="owner_{{ t.id }}" class="owner-sel" data-owner="{{ t.owner }}">{% for v, l in owners %}<option value="{{ v }}" {{ 'selected' if t.owner == v }}>{{ l }}</option>{% endfor %}</select></td>
-        <td><select name="frequency_{{ t.id }}">{% for fr in freqs %}<option value="{{ fr }}" {{ 'selected' if t.frequency == fr }}>{{ fr|capitalize }}</option>{% endfor %}</select></td>
-        <td><input name="hours_{{ t.id }}" value="{{ '' if t.hours_month is none else t.hours_month|hours }}" inputmode="decimal" class="hours" aria-label="Hours per month for {{ t.name }}"></td>
-        <td><input type="checkbox" name="active_{{ t.id }}" {{ 'checked' if t.active }} aria-label="{{ t.name }} active"></td>
-      </tr>
-    {% else %}
-      <tr><td colspan="6" class="muted">No tasks match.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  <div class="savebar"><span class="muted small dirty-note">Unsaved changes</span><button class="btn primary">Save changes</button></div>
-</form>
 {% endblock %}

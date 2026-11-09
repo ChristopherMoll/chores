@@ -1,47 +1,65 @@
+{% macro icon(name, cls='') -%}
+{% set paths = {
+  'tasks': 'M9 6h11M9 12h11M9 18h11M3 6l1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2',
+  'home': 'M3 10l9-7 9 7M5 9v12h14V9M9 21v-8h6v8',
+  'progress': 'M12 21v-9M12 16C4 16 3 10 3 6c6 0 9 3 9 8M12 12c0-6 3-9 9-9 0 6-3 9-9 9',
+  'more': 'M4 12h.01M12 12h.01M20 12h.01',
+  'manage': 'M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6',
+  'admin': 'M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM9 12l2 2 4-4',
+  'check': 'M5 12l4 4L19 6', 'chevron': 'M9 5l7 7-7 7',
+  'bell': 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4',
+  'plus': 'M12 5v14M5 12h14', 'arrow': 'M19 12H5M12 5l-7 7 7 7',
+  'search': 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
+  'settings': 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2',
+  'logout': 'M9 4H4v16h5M9 12h12M16 7l5 5-5 5',
+  'download': 'M12 3v12M7 10l5 5 5-5M4 16v5h16v-5',
+  'heart': 'M20 5c-3-3-6-1-8 1-2-2-5-4-8-1-4 4 0 9 8 15 8-6 12-11 8-15'
+} %}
+<svg class="icon {{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ paths.get(name, paths.chevron) }}"/></svg>
+{%- endmacro %}
+
+{% macro mole(pose, size='', alt='') %}
+<img class="mole {{ size }}" src="{{ url_for('static', filename='mascot/small/' ~ pose ~ '.png') }}" alt="{{ alt }}" width="112" height="112">
+{% endmacro %}
+
 {% macro task_row(r, own, viewer, kind='mine') %}
-{%- set t = r.task -%}
-{%- set c = r.completion -%}
-{%- set mine_to_undo = c and c.user_id == viewer.id -%}
-{%- set interactive = own and viewer.role == 'member' and (not r.done or mine_to_undo) -%}
-<li class="task{{ ' done' if r.done }}{{ ' other' if t.frequency == 'other' }}" data-task="{{ t.id }}" id="task-{{ t.id }}">
+{% set t = r.task %}{% set c = r.completion %}
+{% set interactive = own and viewer.role == 'member' and (not r.done or c.user_id == viewer.id) %}
+<li class="task{{ ' done' if r.done }}" data-task="{{ t.id }}" id="task-{{ t.id }}">
   <form method="post" action="{{ url_for('main.toggle', task_id=t.id) }}" class="tick-form">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <button class="tick" {{ '' if interactive else 'disabled' }}
-      aria-label="{{ ('Undo ' if r.done else 'Cross off ') ~ t.name }}"
-      title="{% if r.done and not mine_to_undo %}Done by {{ c.doer }}{% elif r.done %}Undo{% else %}Cross off{% endif %}">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7"/></svg>
-    </button>
+    <input type="hidden" name="done" value="{{ '0' if r.done else '1' }}">
+    <input type="hidden" name="period" value="{{ r.period_key }}">
+    <button class="tick" type="submit" {{ 'disabled' if not interactive }} aria-label="{{ ('Undo ' if r.done else 'Mark done: ') ~ t.name }}" aria-pressed="{{ 'true' if r.done else 'false' }}">{{ icon('check') }}</button>
   </form>
   <details class="task-body">
     <summary>
-      <span class="task-name">{{ t.name }}</span>
+      <span class="task-title-line"><span class="task-name">{{ t.name }}</span>{{ icon('chevron', 'disclosure') }}</span>
       <span class="task-meta">
-        {% if r.due %}<span class="tag due{{ ' overdue' if r.due.overdue }}">{{ r.due.label }}</span>{% endif %}
-        {% if t.id in nags %}<span class="tag plain" title="You have a reminder on this">🔔</span>{% endif %}
-        <span class="tag grp-{{ t.grp|lower }}">{{ t.grp }}</span>
-        {% if t.owner == 'shared' %}<span class="tag shared">Shared</span>{% endif %}
-        {% if t.owner == 'volunteer' %}<span class="tag grab">+50% pts</span>{% endif %}
-        {% if t.hours_month %}<span class="tag plain">{{ t.hours_month|hours }} h/mo</span>{% endif %}
-        {% if r.done %}<span class="doneby" data-color="{{ c.doer_color }}">✓ {{ c.doer }}</span>
-        {% elif t.frequency == 'other' and r.last_on %}<span class="muted small">last {{ r.last_on }}</span>{% endif %}
+        {% if r.done %}<span class="doneby">Taken care of by {{ c.doer }}</span>
+        {% else %}
+          {% if r.due %}<span class="due{{ ' overdue' if r.due.overdue }}">{{ r.due.label }}</span><span class="meta-dot">·</span>{% endif %}
+          <span>{{ {'daily':'Daily', 'weekly':'Weekly', 'monthly':'Monthly', 'once':'One-off', 'other':'As needed'}[t.frequency] }}</span>
+          {% if t.owner == 'shared' %}<span class="meta-dot">·</span><span>Shared</span>{% endif %}
+          {% if t.owner == 'volunteer' %}<span class="meta-dot">·</span><span class="bonus">50% bonus points</span>{% endif %}
+        {% endif %}
+        {% if t.id in nags|default([]) %}<span class="reminder-marker" aria-label="You have a reminder on this" title="You have a reminder on this">{{ icon('bell') }}</span>{% endif %}
       </span>
     </summary>
     <div class="task-detail">
-      <p>{{ t.description }}</p>
-      {% if t.notes %}<p class="notes"><strong>Our standard:</strong> {{ t.notes }}</p>{% endif %}
-      <p class="muted small">{{ t.code }} · {{ FREQ_LABELS[t.frequency] }}{% if t.frequency != 'other' %} task{% endif %}{% if c %} · crossed off {{ c.done_on }} for {{ c.points }} pts{% endif %}</p>
-      {% if viewer.role == 'member' and t.frequency != 'other' %}<p class="small"><a href="{{ url_for('main.remind', task_id=t.id) }}">🔔 Nag me about this</a></p>{% endif %}
+      {% if t.description %}<p>{{ t.description }}</p>{% endif %}
+      {% if t.notes %}<div class="notes"><strong>What done looks like</strong><p>{{ t.notes }}</p></div>{% endif %}
+      <p class="muted small">{{ t.grp }} · {{ t.code }}{% if t.hours_month is not none %} · {{ t.hours_month|hours }} estimated h/month{% endif %}{% if c %}<br>Completed {{ c.done_on }} · {{ c.points }} points{% endif %}</p>
+      {% if t.frequency == 'other' and r.last_on %}<p class="muted small">Last recorded {{ r.last_on }}</p>{% endif %}
+      <div class="task-detail-actions">
+        {% if viewer.role == 'member' and t.frequency != 'other' %}<a href="{{ url_for('main.remind', task_id=t.id) }}" class="text-action">{{ icon('bell') }} Remind me</a>{% endif %}
+        <a href="{{ url_for('manage.task_edit', task_id=t.id, back=task_back|default(request.full_path)) }}" class="text-action">Edit task</a>
+      </div>
     </div>
   </details>
 </li>
 {% endmacro %}
 
-{% macro mole(pose, size='', alt='') %}
-<img class="mole {{ size }}" src="{{ url_for('static', filename='mascot/small/' ~ pose ~ '.png') }}" alt="{{ alt }}">
-{% endmacro %}
-
-{% macro bar(p, cls='') %}
-<div class="bar {{ cls }}" role="progressbar" aria-valuenow="{{ p.pct }}" aria-valuemin="0" aria-valuemax="100">
-  <span data-pct="{{ p.pct }}"></span>
-</div>
+{% macro bar(p, cls='', label='Tasks completed') %}
+<div class="bar {{ cls }}" role="progressbar" aria-label="{{ label }}" aria-valuenow="{{ p.pct }}" aria-valuemin="0" aria-valuemax="100" aria-valuetext="{{ p.done }} of {{ p.total }} tasks completed"><span data-pct="{{ p.pct }}"></span></div>
 {% endmacro %}

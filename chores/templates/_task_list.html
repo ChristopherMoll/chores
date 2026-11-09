@@ -1,0 +1,9 @@
+{% from '_macros.html' import task_row, bar, mole with context %}
+<section class="task-panel" data-task-panel>
+  <header class="task-panel-heading"><h2>{{ 'Your day' if selected == 'today' and own else current_view.label }}</h2><span class="muted small">{{ current_view.progress.done }} of {{ current_view.progress.total }} done</span></header>
+  {{ bar(current_view.progress, label=current_view.label ~ ' tasks completed') }}
+  <p class="list-hint">{{ current_view.hint }}</p>
+  {% if current_view.open %}<ul class="tasks">{% for r in current_view.open %}{{ task_row(r, own, g.user) }}{% endfor %}</ul>
+  {% else %}<div class="empty-state">{{ mole('celebrate' if current_view.progress.total else 'question', 'lg') }}<h3>{{ 'Taken care of.' if current_view.progress.total else 'A little breathing room.' }}</h3><p>{{ 'Everything on this list is done. Enjoy the space you made.' if current_view.progress.total else 'Nothing on this list right now. Your other lists are close by.' }}</p></div>{% endif %}
+  {% if current_view.completed %}<details class="completed-group"><summary>Completed <span>{{ current_view.completed|length }}</span></summary><ul class="tasks">{% for r in current_view.completed %}{{ task_row(r, own, g.user) }}{% endfor %}</ul></details>{% endif %}
+</section>

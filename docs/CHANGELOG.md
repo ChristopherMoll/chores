@@ -2,6 +2,31 @@
 
 All notable changes to this project are recorded here. Versions follow [semantic versioning](https://semver.org): the major number goes up for changes that need a manual step (a data migration or config change), the minor number for new features, and the patch number for fixes.
 
+## [1.4.1] - 2026-11-09
+
+### Fixed
+- Windows updates repair permissions before stopping the app. The previous recursive ACL command applied directory-only inheritance flags to files, leaving existing configuration, database, or log files unreadable even from Administrator PowerShell. The installer now grants effective file access first, then adds directory inheritance without replacing those grants. Existing inaccessible files are recovered when necessary; SYSTEM and Administrators retain full access, and LOCAL SERVICE retains Modify access.
+- A standalone `deploy/windows/repair-update.ps1` repairs an older installer already extracted to TEMP and retries the update without requiring manual permission edits.
+
+## [1.4.0] - 2026-11-09
+
+No database migration or new service is required. Existing task ownership, recurrence, points, streaks, and badge rules are unchanged.
+
+### Added
+- A focused iPhone layout with bottom navigation, and a persistent desktop sidebar.
+- Today brings daily routines and current weekly, monthly, and one-off deadlines together. Week, month, one-off, and as-needed lists remain available; completed tasks stay accessible in a collapsible section.
+- Together shows household contributions, assigned effort, a shared feed, optional friendly competition, and volunteer opportunities. Progress holds personal milestones, history, and activity.
+- Desktop task editing beside the table, selected-row bulk assignment, accurate unsaved-change counts, discard, and workload previews that include tasks outside the active filters. Phones use task cards and the full editor.
+- More contains account links, reminders, iPhone installation help, and device-local appearance and quiet-celebration preferences.
+- Explicit done/undo requests make retries safe after an interrupted connection, and stale requests cannot change a new recurrence period. Feedback and counts come from the saved server state, including the actual doer of a shared task.
+- Task-specific notification links open the correct list and reveal the task, including future deadlines and completed tasks. Older dashboard-anchor links are handled too.
+
+### Changed
+- Warmer, more readable light and dark themes, larger touch targets, keyboard focus handling, reduced-motion support, and contextual mascot illustrations.
+- Reminder setup says “Remind me” and offers notification permissions at the point of use. The main task screen no longer carries a notification setup card.
+- Management uses “What done looks like” and “Include in task lists.” One-off tasks are still excluded from recurring workload estimates.
+- Returning to the app refreshes stale task state while protecting unsaved management changes. Offline actions show recoverable feedback; offline writes are not queued.
+
 ## [1.3.0] - 2026-11-08
 
 On an iPhone, delete the old home-screen icon and add the app again to get the new name and icon. You'll need to log in and tap Enable notifications again on that phone.

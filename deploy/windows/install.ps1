@@ -18,6 +18,27 @@ function Assert-Ok($what) {
     if ($LASTEXITCODE -ne 0) { throw "$what failed (exit code $LASTEXITCODE)." }
 }
 
+function Set-DataPermissions {
+    # First give files and directories usable permissions. (OI)(CI) are directory
+    # flags: using them with /grant:r /T removes existing file grants without
+    # replacing them, leaving chores.env and the database unreadable.
+    $direct = @("*S-1-5-18:F", "*S-1-5-32-544:F", "*S-1-5-19:M")
+    $inheritable = @("*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F", "*S-1-5-19:(OI)(CI)M")
+    & icacls.exe $Data /inheritance:r /grant:r @direct /T /Q | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        # Files created by LOCAL SERVICE may already have lost every grant.
+        # Recover ownership only inside the app's data directory, then retry.
+        Write-Host "Repairing ownership of the chores data files."
+        & takeown.exe /F $Data /A /R /D Y | Out-Null
+        Assert-Ok "Recovering ownership of $Data"
+        & icacls.exe $Data /inheritance:r /grant:r @direct /T /Q | Out-Null
+        Assert-Ok "Repairing file permissions in $Data"
+    }
+    # Add inheritance without :r so the effective file grants above stay intact.
+    & icacls.exe $Data /grant @inheritable /T /Q | Out-Null
+    Assert-Ok "Setting inherited permissions in $Data"
+}
+
 # Find Python. It has to be an all-users install, because the app runs as LOCAL SERVICE
 # and can't read anything under a person's AppData folder.
 $BasePython = Get-ChildItem (Join-Path $env:ProgramFiles "Python3*\python.exe") -ErrorAction SilentlyContinue |
@@ -30,6 +51,10 @@ $BasePython = $BasePython.FullName
 & $BasePython -c "import sys; sys.exit(sys.version_info < (3, 11))"
 Assert-Ok "The Python 3.11+ check for $BasePython"
 Write-Host "Using $BasePython"
+
+# Repair access before stopping the running app or replacing any code.
+New-Item -ItemType Directory -Force -Path $Data, $Logs, $Backups | Out-Null
+Set-DataPermissions
 
 # Stop anything already running so the code and virtualenv can be replaced.
 # Not the update task: update.ps1 runs this script, and stopping it would end the update halfway.
@@ -56,11 +81,6 @@ Assert-Ok "Installing dependencies"
 # LOCAL SERVICE can't write bytecode here, so compile it now to keep the every-minute run fast.
 & $Python -m compileall -q (Join-Path $App "chores")
 Assert-Ok "Compiling the app"
-
-# Data folder: only SYSTEM, Administrators and the app's own account can get in.
-New-Item -ItemType Directory -Force -Path $Data, $Logs, $Backups | Out-Null
-icacls $Data /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-19:(OI)(CI)M" /T /Q | Out-Null
-Assert-Ok "Setting folder permissions"
 
 if (-not (Test-Path $EnvFile)) {
     $lines = (Get-Content (Join-Path $App "deploy\chores.env.example")) -replace '^CHORES_INSTANCE=.*', "CHORES_INSTANCE=$Data"
