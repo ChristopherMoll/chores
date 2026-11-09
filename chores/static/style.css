@@ -26,6 +26,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; line-height: 1.45; }
 a { color: inherit; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 2px; }
 h1 { font-size: 1.7rem; letter-spacing: -.02em; margin: .2em 0 .3em; }
@@ -182,6 +183,14 @@ li.task.pop .tick { transform: scale(1.18); }
 .tag.shared { background: transparent; border: 1px solid var(--line); }
 .tag.grab { background: #fde7b0; color: #6b4b00; }
 .tag.plain { background: transparent; color: var(--muted); padding-left: 0; }
+.tag.due { background: transparent; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--accent); }
+.tag.overdue { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); color: var(--warn); }
+li.task.done .tag.due { display: none; }
+li.task { scroll-margin-top: 4rem; }
+li.task:target { background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 8px; }
+.push-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .8rem; }
+.push-card p { margin: .2rem 0 0; }
+.warn-text { color: var(--warn); }
 .doneby { font-size: .72rem; font-weight: 700; color: var(--c); }
 .grabs { border-style: dashed; }
 .grabs header { display: block; }

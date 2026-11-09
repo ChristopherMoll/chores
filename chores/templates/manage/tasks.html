@@ -41,7 +41,7 @@
       <tr class="{{ 'off' if not t.active }}">
         <td class="code"><input type="hidden" name="id" value="{{ t.id }}">{{ t.code }}</td>
         <td><a href="{{ url_for('manage.task_edit', task_id=t.id) }}" class="tname">{{ t.name }}</a>
-          <span class="tag grp-{{ t.grp|lower }}">{{ t.grp }}</span>{% if t.notes %} <span class="muted small" title="{{ t.notes }}">📝</span>{% endif %}</td>
+          <span class="tag grp-{{ t.grp|lower }}">{{ t.grp }}</span>{% if t|due_summary %} <span class="tag plain">⏱ {{ t|due_summary }}</span>{% endif %}{% if t.notes %} <span class="muted small" title="{{ t.notes }}">📝</span>{% endif %}</td>
         <td><select name="owner_{{ t.id }}" class="owner-sel" data-owner="{{ t.owner }}">{% for v, l in owners %}<option value="{{ v }}" {{ 'selected' if t.owner == v }}>{{ l }}</option>{% endfor %}</select></td>
         <td><select name="frequency_{{ t.id }}">{% for fr in freqs %}<option value="{{ fr }}" {{ 'selected' if t.frequency == fr }}>{{ fr|capitalize }}</option>{% endfor %}</select></td>
         <td><input name="hours_{{ t.id }}" value="{{ '' if t.hours_month is none else t.hours_month|hours }}" inputmode="decimal" class="hours" aria-label="Hours per month for {{ t.name }}"></td>

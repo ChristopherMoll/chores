@@ -30,7 +30,8 @@ def _guard():
 def system():
     db = get_db()
     path = current_app.config["DATABASE"]
-    counts = {t: db.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("users", "tasks", "completions")}
+    counts = {t: db.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in
+              ("users", "tasks", "completions", "reminders", "push_subscriptions")}
     schema = db.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()
     cfg = current_app.config
     settings = [
@@ -41,6 +42,7 @@ def system():
         ("Behind proxy", "on" if os.environ.get("CHORES_BEHIND_PROXY", "").lower() in ("1", "true", "yes", "on") else "off",
          "CHORES_BEHIND_PROXY"),
         ("Instance folder", current_app.instance_path, "CHORES_INSTANCE"),
+        ("Push subject", cfg["VAPID_SUBJECT"], "CHORES_VAPID_SUBJECT"),
     ]
     info = {
         "version": __version__,

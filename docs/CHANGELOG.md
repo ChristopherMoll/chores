@@ -6,6 +6,29 @@ All notable changes to this project are recorded here. Versions follow [semantic
 
 Nothing yet.
 
+## [1.2.0] - 2026-11-08
+
+Run `sudo ./deploy/install.sh` to update. It backs up the database and applies the schema change itself.
+
+### Added
+- **One-off tasks** with an optional due date. They get their own section on the dashboard, and drop off the day after they're crossed off.
+- **Due settings:** a due day for weekly tasks, a due day of the month for monthly tasks, and a due-by time for daily tasks. Tasks show "Due Wed", "By 8:00 pm" or an overdue label, and sort soonest first.
+- **"Nag me about this":** per-person reminders on any task with a due date, such as "if this isn't done 1 day before it's due, remind me at 9:00 am". A task can have several, and they're skipped once it's crossed off.
+- **Push notifications** for the app saved to an iPhone home screen (iOS 16.4+): a service worker, VAPID keys generated next to the database, per-device subscriptions, and an Enable notifications card on your dashboard with a test button. Expired subscriptions are removed automatically.
+- `manage.py notify` and a `chores-notify.timer` that runs it every minute. `manage.py migrate` applies schema changes.
+- PNG app icons, because iOS ignores SVG touch icons.
+- CSV export and import now include the due settings.
+- New setting `CHORES_VAPID_SUBJECT`.
+
+### Fixed
+- The service failed to start from the example config: systemd treats end-of-line comments as part of the value. The example no longer has any, and `install.sh` strips them from existing env files.
+- `install.sh` wasn't executable in git, and now installs `rsync`, which it depends on.
+- A POST with no CSRF token passed the check if the session had none either. A non-ASCII token caused a 500.
+- A crafted `next=` value with a backslash or control character could redirect off-site after login.
+- Changing a task's frequency mid-period could make a completed task show as open.
+- Two people crossing off the same task at the same moment gave one of them a 500.
+- Pages crashed on Windows because `%-d` date formats don't exist there. Added `tzdata` for Windows too.
+
 ## [1.1.0] - 2026-11-08
 
 ### Changed

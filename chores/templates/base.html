@@ -6,7 +6,9 @@
   <meta name="theme-color" content="#1f2a33">
   <title>{% block title %}Chores{% endblock %} · moll.casa</title>
   <link rel="icon" href="{{ url_for('static', filename='icon.svg') }}" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon.svg') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-180.png') }}">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="chores">
   <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ version }}">
   <script src="{{ url_for('static', filename='app.js') }}?v={{ version }}" defer></script>

@@ -102,6 +102,113 @@
     document.querySelectorAll("details.menu[open]").forEach(d => { if (!d.contains(ev.target)) d.open = false; });
   });
 
+  // Task form: show only the due field that applies to the chosen frequency.
+  const freqSelect = document.querySelector("select[data-due-switch]");
+  if (freqSelect) {
+    const syncDue = () => document.querySelectorAll("[data-due-for]").forEach(el => { el.hidden = el.dataset.dueFor !== freqSelect.value; });
+    freqSelect.addEventListener("change", syncDue);
+    syncDue();
+  }
+
+  // Reminder form: a time of day only makes sense for "days before".
+  const unitSelect = document.querySelector("select[name=unit]");
+  const atTime = document.querySelector("[data-at-time]");
+  if (unitSelect && atTime) {
+    const syncUnit = () => { atTime.hidden = unitSelect.value !== "days"; };
+    unitSelect.addEventListener("change", syncUnit);
+    syncUnit();
+  }
+
+  // Push notifications: the "Notifications" card on your own dashboard.
+  const pushCard = document.getElementById("push-card");
+  if (pushCard) setupPush(pushCard);
+
+  function setupPush(card) {
+    const status = document.getElementById("push-status");
+    const on = document.getElementById("push-on");
+    const off = document.getElementById("push-off");
+    const test = document.getElementById("push-test");
+    card.hidden = false;
+
+    if (!("serviceWorker" in navigator && "PushManager" in window && "Notification" in window)) {
+      const iPhone = /iPhone|iPad/.test(navigator.userAgent);
+      status.textContent = iPhone
+        ? "To get reminders on this iPhone: tap Share, then Add to Home Screen, then open chores from its icon and log in there. Needs iOS 16.4 or later."
+        : "This browser can't receive push notifications.";
+      return;
+    }
+
+    const post = (url, body) => fetch(url, {
+      method: "POST",
+      headers: { "Accept": "application/json", "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      credentials: "same-origin",
+      body: JSON.stringify(body || {}),
+    });
+    const keyBytes = (b64) => {
+      const raw = atob(b64.replace(/-/g, "+").replace(/_/g, "/"));
+      return Uint8Array.from(raw, c => c.charCodeAt(0));
+    };
+    const worker = navigator.serviceWorker.register("/sw.js").then(() => navigator.serviceWorker.ready);
+
+    async function render() {
+      const reg = await worker;
+      const sub = await reg.pushManager.getSubscription();
+      const enabled = !!sub && Notification.permission === "granted";
+      on.hidden = enabled || Notification.permission === "denied";
+      off.hidden = test.hidden = !enabled;
+      if (enabled) {
+        status.textContent = "This device will get your reminders.";
+        post("/push/subscribe", sub.toJSON()).catch(() => {});   // keeps the server's copy current
+      } else if (Notification.permission === "denied") {
+        status.textContent = "Notifications are blocked. Turn them on for chores in your device's Settings.";
+      } else {
+        status.textContent = "Turn this on to get the reminders you set with \"Nag me\" on this device.";
+      }
+    }
+
+    on.addEventListener("click", async () => {
+      on.disabled = true;
+      try {
+        // iOS only shows the prompt if this runs directly from the tap.
+        const permission = await Notification.requestPermission();
+        if (permission === "granted") {
+          const reg = await worker;
+          const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: keyBytes(card.dataset.vapid),
+          });
+          const res = await post("/push/subscribe", sub.toJSON());
+          if (!res.ok) throw new Error("server refused");
+          toast("Notifications on", "ok");
+        }
+      } catch (e) {
+        toast("Couldn't turn on notifications.", "error");
+      } finally {
+        on.disabled = false;
+        render();
+      }
+    });
+
+    off.addEventListener("click", async () => {
+      const reg = await worker;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await post("/push/unsubscribe", { endpoint: sub.endpoint }).catch(() => {});
+        await sub.unsubscribe();
+      }
+      toast("Notifications off", "");
+      render();
+    });
+
+    test.addEventListener("click", async () => {
+      const res = await post("/push/test").catch(() => null);
+      const data = res ? await res.json().catch(() => ({})) : {};
+      toast(data.ok ? "Test sent" : "Couldn't send the test.", data.ok ? "ok" : "error");
+    });
+
+    render().catch(() => { status.textContent = "Notifications aren't available right now."; });
+  }
+
   paint(document);
   requestAnimationFrame(() => document.body.classList.add("ready"));
 })();
