@@ -2,6 +2,11 @@
 
 All notable changes to this project are recorded here. Versions follow [semantic versioning](https://semver.org): the major number goes up for changes that need a manual step (a data migration or config change), the minor number for new features, and the patch number for fixes.
 
+## [1.4.2] - 2026-11-09
+
+### Fixed
+- Installing on Windows ARM64 no longer tries to compile `cryptography` from source, which failed without OpenSSL and a build toolchain. The installer and CI now accept only a prebuilt `cryptography`, so on ARM64 pip selects `cryptography` 46.0.3 and `pywebpush` 2.3.0. Other platforms still get the newest releases.
+
 ## [1.4.1] - 2026-11-09
 
 ### Fixed

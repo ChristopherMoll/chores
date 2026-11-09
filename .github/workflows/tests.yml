@@ -29,5 +29,5 @@ jobs:
           cache: pip
       # Same order as deploy/windows/install.ps1
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install --prefer-binary -r requirements-dev.txt
+      - run: python -m pip install --prefer-binary --only-binary=cryptography -r requirements-dev.txt
       - run: pytest -q
