@@ -95,7 +95,7 @@ Say **"Hey Siri, I did a chore"**, then name it, and Siri crosses it off and tel
 - Your own and Shared tasks come first. If you name your partner's task, Siri crosses it off anyway, since you've probably already done it, and sends your partner a "Task stolen!" notification. You get the points. If your partner has no notifications set up, Siri tells you to mention it yourself.
 - Voice never claims a Needs Volunteer task, so claim those in the app. The app itself still only lets you cross off your own, Shared and volunteer tasks.
 - Saying the same thing twice is safe. "Undo" puts back your most recent cross-off from the last hour; undoing a stolen task sends your partner a "Never mind" notification.
-- Optional extra shortcuts send fixed words: "what's left", "undo" or "score".
+- Optional extra shortcuts send fixed words: "what's left", "undo" or "score". Name the first one **What chores do I have left today**, and Siri answers with your remaining daily chores, then anything due today, then anything overdue, matching the app's Today list. It reads up to 10 names and says how many more are in the app.
 - Phrases that match no task are kept for 30 days and shown to admins on the Admin page, to help with renaming tasks.
 - Removing a key under **More → Siri** disconnects that shortcut immediately. Admin accounts can't have voice keys.
 

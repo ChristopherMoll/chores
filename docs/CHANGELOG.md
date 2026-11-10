@@ -2,6 +2,17 @@
 
 All notable changes to this project are recorded here. Versions follow [semantic versioning](https://semver.org): the major number goes up for changes that need a manual step (a data migration or config change), the minor number for new features, and the patch number for fixes.
 
+## [1.6.0] - 2026-11-09
+
+### Added
+- **"Hey Siri, what chores do I have left today?"** Siri now reads the whole Today list in groups: remaining daily chores, then chores due today, then overdue ones. Long lists stop after 10 names and say how many more are in the app. The More → Siri page explains how to add this shortcut.
+
+### Changed
+- Voice understands more ways of asking what's left, such as "what chores do I have left today".
+
+### Fixed
+- The More → Siri page showed `main.voice_setup` instead of the address to put in the shortcut. It now shows `https://chores.moll.casa/api/v1/voice`, and the More tab stays highlighted on that page.
+
 ## [1.5.0] - 2026-11-09
 
 No manual step: the two new tables are created by the normal update.

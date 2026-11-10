@@ -85,6 +85,16 @@ def test_setup_page_shows_a_new_key_once(app):
     assert say(app.test_client(), key, "what's left")[0] == 200
     again = client.get("/voice").get_data(as_text=True)
     assert key not in again and "Chris&#39;s iPhone" in again
+    assert "<code>http://localhost/api/v1/voice</code>" in again and "main.voice_setup" not in again
+
+
+def test_setup_page_shows_the_public_https_address_behind_the_proxy(app):
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)   # what CHORES_BEHIND_PROXY=1 does
+    client = app.test_client()
+    login(client, "chris")
+    page = client.get("/voice", headers={"X-Forwarded-Proto": "https", "X-Forwarded-Host": "chores.moll.casa"})
+    assert "<code>https://chores.moll.casa/api/v1/voice</code>" in page.get_data(as_text=True)
 
 
 def test_bad_bodies_get_a_spoken_error(app, chris):
@@ -189,6 +199,30 @@ def test_undo_reverses_only_your_latest_cross_off(app, chris):
     assert body["action"] == "undone" and "Dishes" in body["speech"]
     assert completions(app, "H02") == []
     assert say(client, key, "undo")[1]["action"] == "nothing_to_undo"
+
+
+def test_whats_left_lists_daily_due_today_and_overdue(app, chris):
+    client, key = chris
+    with app.app_context():
+        set_task("H03", owner="chris", frequency="weekly", due_weekday=2)           # Wednesday: today
+        set_task("H04", owner="chris", frequency="once", due_date="2026-11-10")     # yesterday
+        set_task("H06", owner="chris", frequency="once", due_date="2026-11-20")     # not yet
+    body = say(client, key, "what chores do I have left today")[1]
+    assert body["action"] == "left"
+    assert body["daily"] == ["Dishes", "Weeknight Dinners"]
+    assert body["due_today"] == ["Trash & Recycling"] and body["overdue"] == ["Groceries"]
+    assert body["speech"] == ("4 left today. Daily: Dishes and Weeknight Dinners. "
+                              "Due today: Trash & Recycling. Overdue: Groceries.")
+
+
+def test_whats_left_keeps_long_lists_short(app, chris):
+    client, key = chris
+    with app.app_context():
+        db.get_db().execute("UPDATE tasks SET owner='chris' WHERE frequency='daily' AND active=1")
+        db.get_db().commit()
+    body = say(client, key, "what's left")[1]
+    assert body["count"] > voice.MAX_SPOKEN_TASKS
+    assert body["speech"].endswith(f"And {body['count'] - voice.MAX_SPOKEN_TASKS} more in the app.")
 
 
 def test_whats_left_and_score(app, chris):

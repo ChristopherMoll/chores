@@ -28,7 +28,7 @@ FILLER = frozenset("""
 """.split())
 
 UNDO = re.compile(r"\b(undo|take (that|it) back|scratch that|oops|cancel that)\b")
-LEFT = re.compile(r"\b(whats|what is|what do i have|anything|how many)\b.*\b(left|next|to do|remaining)\b"
+LEFT = re.compile(r"\b(what|whats|anything|how many)\b.*\b(left|next|to do|remaining)\b"
                   r"|\b(whats next|what should i do)\b")
 SCORE = re.compile(r"\b(score|points|streak|how am i doing)\b")
 
@@ -233,17 +233,37 @@ def _undo(user):
     return _reply(True, "undone", f"Okay, {row['name']} is back on your list.", task=row["name"])
 
 
+MAX_SPOKEN_TASKS = 10   # past this, a list is too long to follow in the car
+
+
+def _and_list(names):
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
 def _left(user):
-    open_ = logic.task_views(logic.dashboard(user["username"]))["today"]["open"]
+    """Today's open list, as the app shows it: daily chores, then anything due today, then overdue."""
+    d = periods.today()
+    open_ = logic.task_views(logic.dashboard(user["username"], d), d)["today"]["open"]
     if not open_:
-        return _reply(True, "left", "Nothing left today. Nice work.", count=0)
-    names = [r["task"]["name"] for r in open_[:3]]
-    more = len(open_) - len(names)
-    if more:
-        listed = ", ".join(names) + f", and {more} more"
-    else:
-        listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
-    return _reply(True, "left", f"{len(open_)} left today: {listed}.", count=len(open_))
+        return _reply(True, "left", "Nothing left today. Nice work.", count=0, daily=[], due_today=[], overdue=[])
+    groups = {"daily": [], "due_today": [], "overdue": []}
+    for r in open_:
+        task = r["task"]
+        if task["frequency"] == "daily":
+            groups["daily"].append(task["name"])
+        else:
+            due = periods.due_date(task, d)
+            groups["overdue" if due and due < d else "due_today"].append(task["name"])
+    parts, budget = [], MAX_SPOKEN_TASKS
+    for key, label in (("daily", "Daily"), ("due_today", "Due today"), ("overdue", "Overdue")):
+        names = groups[key][:budget]
+        budget -= len(names)
+        if names:
+            parts.append(f"{label}: {_and_list(names)}.")
+    more = len(open_) - MAX_SPOKEN_TASKS
+    if more > 0:
+        parts.append(f"And {more} more in the app.")
+    return _reply(True, "left", f"{len(open_)} left today. " + " ".join(parts), count=len(open_), **groups)
 
 
 def _score(user):
