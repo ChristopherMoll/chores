@@ -24,12 +24,15 @@
 
 {% macro task_row(r, own, viewer, kind='mine') %}
 {% set t = r.task %}{% set c = r.completion %}
-{% set interactive = own and viewer.role == 'member' and (not r.done or c.user_id == viewer.id) %}
-<li class="task{{ ' done' if r.done }}" data-task="{{ t.id }}" id="task-{{ t.id }}">
+{% set allowed = own and viewer.role == 'member' and (t.owner in (viewer.username, 'shared', 'volunteer') or (r.done and c.user_id == viewer.id)) %}
+{% set interactive = allowed and not r.waiting and not r.blocked and not r.cancelled and (not r.done or c.user_id == viewer.id) %}
+{% set row_key = 'occurrence-' ~ r.occurrence_id if r.occurrence_id else 'task-' ~ t.id %}
+<li class="task{{ ' done' if r.done }}{{ ' waiting' if r.waiting or r.blocked }}" data-task="{{ t.id }}" data-row-key="{{ row_key }}" id="{{ row_key }}"{% if r.waiting and r.ready_at %} data-ready-at="{{ r.ready_at.isoformat() }}"{% endif %}>
   <form method="post" action="{{ url_for('main.toggle', task_id=t.id) }}" class="tick-form">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <input type="hidden" name="done" value="{{ '0' if r.done else '1' }}">
     <input type="hidden" name="period" value="{{ r.period_key }}">
+    {% if r.occurrence_id %}<input type="hidden" name="occurrence_id" value="{{ r.occurrence_id }}">{% endif %}
     <button class="tick" type="submit" {{ 'disabled' if not interactive }} aria-label="{{ ('Undo ' if r.done else 'Mark done: ') ~ t.name }}" aria-pressed="{{ 'true' if r.done else 'false' }}">{{ icon('check') }}</button>
   </form>
   <details class="task-body">
@@ -39,7 +42,7 @@
         {% if r.done %}<span class="doneby">Taken care of by {{ c.doer }}</span>
         {% else %}
           {% if r.due %}<span class="due{{ ' overdue' if r.due.overdue }}">{{ r.due.label }}</span><span class="meta-dot">·</span>{% endif %}
-          <span>{{ {'daily':'Daily', 'weekly':'Weekly', 'monthly':'Monthly', 'once':'One-off', 'other':'As needed'}[t.frequency] }}</span>
+          {% if r.skipped %}<span>Skipped</span>{% elif r.cancelled %}<span>Cancelled</span>{% elif r.blocked %}<span>Waiting for the previous step · then {{ r.delay_minutes }} min</span>{% elif r.waiting %}<span>Ready {{ r.ready_at|datefmt('%a, %b %-d') }} at {{ r.ready_at.time()|clock }}</span>{% elif r.run_id %}<span>Ready when you are · Step {{ r.position + 1 }}</span>{% else %}<span>{{ t|due_summary if t.frequency == 'selected' else {'daily':'Daily', 'weekly':'Weekly', 'monthly':'Monthly', 'once':'One-off', 'other':'As needed'}.get(t.frequency, FREQ_LABELS[t.frequency]) }}</span>{% endif %}
           {% if t.owner == 'shared' %}<span class="meta-dot">·</span><span>Shared</span>{% endif %}
           {% if t.owner == 'volunteer' %}<span class="meta-dot">·</span><span class="bonus">50% bonus points</span>{% endif %}
         {% endif %}
@@ -52,12 +55,30 @@
       <p class="muted small">{{ t.grp }} · {{ t.code }}{% if t.hours_month is not none %} · {{ t.hours_month|hours }} estimated h/month{% endif %}{% if c %}<br>Completed {{ c.done_on }} · {{ c.points }} points{% endif %}</p>
       {% if t.frequency == 'other' and r.last_on %}<p class="muted small">Last recorded {{ r.last_on }}</p>{% endif %}
       <div class="task-detail-actions">
-        {% if viewer.role == 'member' and t.frequency != 'other' %}<a href="{{ url_for('main.remind', task_id=t.id) }}" class="text-action">{{ icon('bell') }} Remind me</a>{% endif %}
+        {% if r.run_id %}<a href="{{ url_for('main.sequence_run', run_id=r.run_id) }}" class="text-action">{{ r.run_name }} · Run {{ r.run_id[:6] }}</a>{% elif viewer.role == 'member' and t.frequency not in ('other','sequence') %}<a href="{{ url_for('main.remind', task_id=t.id) }}" class="text-action">{{ icon('bell') }} Remind me</a>{% endif %}
         <a href="{{ url_for('manage.task_edit', task_id=t.id, back=task_back|default(request.full_path)) }}" class="text-action">Edit task</a>
       </div>
+      {% if allowed and r.waiting and not r.blocked and not r.cancelled %}<form class="tick-form" method="post" action="{{ url_for('main.toggle', task_id=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="done" value="1"><input type="hidden" name="occurrence_id" value="{{ r.occurrence_id }}"><input type="hidden" name="period" value="{{ r.period_key }}"><input type="hidden" name="early" value="1"><button class="btn" type="submit">Done early</button></form>{% endif %}
+      {% if allowed and r.run_id and r.position and not r.done and not r.blocked and not r.cancelled %}<form class="ready-adjustment" method="post" action="{{ url_for('main.reschedule_occurrence', occurrence_id=r.occurrence_id) }}" data-track-changes><input type="hidden" name="csrf" value="{{ csrf_token() }}"><label>Ready in minutes from now<input name="minutes" type="number" min="0" max="525600" value="60" required inputmode="numeric"></label><button class="btn">Update ready time</button></form>{% endif %}
+      {% if allowed and r.source == 'selected' and not r.done and not r.run_id and not r.cancelled %}<form method="post" action="{{ url_for('main.skip_occurrence', occurrence_id=r.occurrence_id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="text-action" type="submit">Skip this occurrence</button></form>{% endif %}
+      {% if allowed and r.has_sequence %}<form method="post" action="{{ url_for('main.start_sequence', task_id=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="run_token" value="{{ run_token() }}"><button type="submit" class="text-action">Start another run</button></form>{% endif %}
     </div>
   </details>
 </li>
+{% endmacro %}
+
+{% macro task_rows(rows, own, viewer) %}
+{% set ns = namespace(seen=[]) %}
+{% set plain = rows|rejectattr('run_id')|list %}
+{% if plain %}<ul class="tasks">{% for r in plain %}{{ task_row(r, own, viewer) }}{% endfor %}</ul>{% endif %}
+{% for r in rows %}
+  {% if r.run_id %}
+    {% if r.run_id not in ns.seen %}
+      {% set ns.seen = ns.seen + [r.run_id] %}
+      <details class="sequence-group" open data-run-group="{{ r.run_id }}"><summary>{{ r.run_name }} <span class="muted small">Run {{ r.run_id[:6] }}</span></summary><ul class="tasks">{% for step in rows if step.run_id == r.run_id %}{{ task_row(step, own, viewer) }}{% endfor %}</ul></details>
+    {% endif %}
+  {% endif %}
+{% endfor %}
 {% endmacro %}
 
 {% macro bar(p, cls='', label='Tasks completed') %}

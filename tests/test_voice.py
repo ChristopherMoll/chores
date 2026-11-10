@@ -183,6 +183,39 @@ def test_close_matches_ask_instead_of_guessing(app, chris):
     assert say(client, key, "water the back plants")[1]["task"] == "Water back plants"
 
 
+def laundry_tasks(app, plain=False):
+    with app.app_context():
+        set_task("H03", owner="chris", name="Wash Laundry")
+        set_task("H04", owner="chris", name="Fold the Laundry")
+        if plain:
+            set_task("H01", owner="chris", name="Laundry")
+
+
+@pytest.mark.parametrize("heard", ["wash laundry", "washed the laundry", "watch laundry", "wish laundry"])
+def test_a_misheard_word_still_tells_similar_tasks_apart(app, chris, heard):
+    client, key = chris
+    laundry_tasks(app)
+    body = say(client, key, heard)[1]
+    assert body["action"] == "completed" and body["task"] == "Wash Laundry"
+
+
+def test_the_most_specific_name_heard_in_full_wins(app, chris):
+    client, key = chris
+    laundry_tasks(app, plain=True)
+    assert say(client, key, "wash laundry")[1]["task"] == "Wash Laundry"
+
+
+def test_a_mishearing_asks_rather_than_settling_for_a_shorter_name(app, chris):
+    client, key = chris
+    laundry_tasks(app, plain=True)
+    body = say(client, key, "watch laundry")[1]
+    assert body["action"] == "ambiguous" and body["heard"] == "watch laundry"
+    assert body["speech"].startswith("I heard “watch laundry”. Did you mean")
+    admin = app.test_client()
+    login(admin, "admin")
+    assert "watch laundry (asked: " in admin.get("/admin/").get_data(as_text=True)
+
+
 def test_unmatched_phrases_are_kept_for_admins(app, chris):
     client, key = chris
     assert say(client, key, "fed the goldfish")[1]["action"] == "no_match"
@@ -240,6 +273,8 @@ def test_whats_left_and_score(app, chris):
     ("took out the trash", "Trash & Recycling", True),
     ("kitchen reset", "Kitchen Reset", True),
     ("did the dishes", "Laundry", False),
+    ("mopped the floors", "Mop Floors", True),
+    ("watch the goldfish", "Wash Dishes", False),   # a near miss alone never picks a task
     ("", "Dishes", False),
 ])
 def test_score(spoken, name, expected):

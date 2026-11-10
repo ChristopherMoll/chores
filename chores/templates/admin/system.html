@@ -32,8 +32,8 @@
 </div>
 
 <section class="card">
-  <h2>Unmatched voice phrases</h2>
-  <p class="muted small">What people said to Siri that matched no task, from the last 30 days. Useful for renaming tasks.</p>
+  <h2>Voice phrases that didn't work</h2>
+  <p class="muted small">What Siri heard when it matched no task, or had to ask which task was meant, from the last 30 days. Useful for renaming tasks.</p>
   {% if misses %}
   <table class="kv">
     {% for m in misses %}<tr><th>{{ m.display_name }}<br><span class="muted small">{{ m.heard_at[:16] }} UTC</span></th><td>{{ m.phrase }}</td></tr>{% endfor %}

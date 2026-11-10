@@ -61,8 +61,29 @@ The mole celebrates a completed Today list and otherwise stays encouraging. Savi
 | Monthly | On the 1st | Budget & Bills |
 | One-off | Never. Done once. | Renew passport |
 | Other / as needed | Never. Each log is a dated entry. | Taxes |
+| Selected days | A separate occurrence on each chosen day, Monday–Sunday | Water plants on Tue, Sat, Sun |
+| Sequence step | Only activated by the previous step in a run | Dry laundry, then fold laundry |
 
-A crossed-off task stays crossed off until its period ends, then it comes back as open. A one-off stays on your list until the end of the day you cross it off, so you can undo a mistake, then drops off. Its history is kept.
+A daily, weekly or monthly task stays crossed off until its period ends, then comes back as open. A one-off stays on your list until the end of the day you cross it off, so you can undo a mistake, then drops off. Its history is kept. Selected-day occurrences are independent: doing Saturday's chore doesn't complete Sunday's. Missed occurrences remain open with their original date, and **Skip this occurrence** removes just that date without points.
+
+### Selected days and timed sequences
+
+Open a task in **Manage tasks** and choose **Repeats → Selected days**. Select any days from Monday through Sunday, plus an optional common **Due by** time. Two or three selected days give you twice- or thrice-weekly chores, including weekends. New schedules start today. Changing days replaces unfinished current/future dates while preserving past work and existing runs. Selected occurrences appear in Today when their day arrives, and in This week/This month for planning.
+
+For a sequence, edit the first real chore, such as **Wash the laundry**, and expand **After this, a little next step**. Add **Dry the laundry** with a 60-minute delay, then **Fold the laundry** with another 60-minute delay. Add more follow-ups with **Add a follow-up**. New steps inherit the first task's owner; edit them separately to reassign them. To reuse an existing chore, first set its repeat type to **Sequence step**, so it doesn't also repeat independently.
+
+Completing Wash at 10:00 makes Dry ready at 11:00. Completing Dry late, at 11:20, makes Fold ready at 12:20. Delays are elapsed minutes, including across midnight and daylight-saving changes. A waiting step appears in **Coming up**, and a step whose predecessor isn't finished says so. These do not count against today's progress. Open the run link to see the entire sequence. Ready times are saved on the server and survive closing the iPhone app or restarting the server.
+
+- **Done early** completes an activated step before its ready time and times its follow-up from that actual completion. A blocked step still needs its predecessor completed first.
+- **Update ready time** sets an activated unfinished step to become ready a chosen number of minutes from now, for this run only.
+- **Start another run** allows another laundry load while a previous one is waiting. Each run has a separate identifier, completions and timings.
+- **Cancel remaining steps** keeps completed work and points. Undoing a step retracts its unfinished follow-ups; undo later completed steps first to protect their work.
+- Template edits affect future runs. Existing runs retain their original names, owners, effort estimates and delays. Archive referenced tasks to preserve runs; permanent deletion requires removing sequence links and finishing or cancelling active runs first.
+- Each real step earns its own points. Enter active work in the step's hours estimate, excluding machine waiting time; the sequence group earns no extra points. Unlinked sequence steps and steps used only by one-offs are excluded from recurring assigned workload.
+
+Ready notifications are optional and personal. Use the checkbox in the sequence editor or the button on a run page, and enable device notifications in **More**. Only opted-in people receive nudges for their own or Shared steps; a volunteer run's doer can receive its volunteer follow-ups. Turn them off in **More → Your sequence reminders**. The existing once-a-minute notification job handles delivery, with the same two-hour late-send window as other reminders. Browser refreshes cannot send notifications.
+
+Siri understands ready selected-day occurrences and sequence steps. If two missed dates or laundry loads are ready for the same task, it asks you to choose the occurrence in the app. It cannot complete a waiting or blocked step by voice. A repeated command for a completed step is safe when it still identifies the same occurrence; naming a task with another ready occurrence refers to that ready work.
 
 ### Due days and times
 
@@ -74,7 +95,7 @@ Tap a task's name, then **Remind me**, and choose when you'd like a push notific
 
 - A task needs a due date to count back from. Daily tasks are due at their due-by time, or the end of the day if none is set. Weekly and monthly tasks with no due day are due on the last day of their period. As-needed tasks and one-offs with no date can't have reminders.
 - If the task is crossed off by then, including by your partner on a Shared task, the reminder is skipped.
-- A reminder can't fire before the task's period opens, since you couldn't cross it off yet. "1 day before" on a weekly task due on the first day of the week arrives that first day instead.
+- Daily, weekly and monthly reminders can't fire before their period opens. "1 day before" on a weekly task due on the first day of the week arrives that first day instead. Selected-day reminders can arrive before the date to help you plan; the notification opens that specific occurrence.
 - If the Pi was off when a reminder came due, it's still sent if it's less than 2 hours late.
 
 ### Turning on notifications on an iPhone
@@ -128,7 +149,7 @@ The **admin** account is kept separate for technical settings only (see [The adm
 All 109 cards (plus any you add) are in one table. For each row you can change:
 
 - **Owner:** Chris, Andrea, Shared, or Needs Volunteer.
-- **Frequency:** Daily, Weekly, Monthly, Once, or Other. Changing it clears the old due setting, since it no longer applies.
+- **Frequency:** Daily, Weekly, Monthly, One-off, As needed, Selected days, or Sequence step. Choose selected days in the full editor before using that frequency in the grid. Changing frequency clears due settings that no longer apply.
 - **Hours / mo:** your estimate of total monthly effort, including the noticing and planning, not just the doing.
 - **Include:** uncheck to archive a task without losing its history. Archived tasks disappear from task lists.
 

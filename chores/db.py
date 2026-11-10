@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS {name} (
     grp          TEXT    NOT NULL,
     name         TEXT    NOT NULL,
     description  TEXT    NOT NULL DEFAULT '',
-    frequency    TEXT    NOT NULL CHECK (frequency IN ('daily', 'weekly', 'monthly', 'once', 'other')),
+    frequency    TEXT    NOT NULL CHECK (frequency IN ('daily', 'weekly', 'monthly', 'once', 'other', 'selected', 'sequence')),
     owner        TEXT    NOT NULL DEFAULT 'volunteer',
     hours_month  REAL,
     notes        TEXT    NOT NULL DEFAULT '',
@@ -23,7 +23,10 @@ CREATE TABLE IF NOT EXISTS {name} (
     due_date     TEXT,                       -- once: YYYY-MM-DD
     due_weekday  INTEGER,                    -- weekly: 0 = Monday ... 6 = Sunday
     due_monthday INTEGER,                    -- monthly: 1-31, short months use their last day
-    due_time     TEXT                        -- daily: HH:MM
+    due_time     TEXT,                       -- daily / selected days: HH:MM
+    selected_days TEXT NOT NULL DEFAULT '', -- comma-separated Monday=0 ... Sunday=6
+    selected_start TEXT,
+    selected_until TEXT
 );
 """
 
@@ -108,7 +111,53 @@ CREATE TABLE IF NOT EXISTS voice_misses (
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
-SCHEMA_VERSION = "2"
+SCHEDULE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS task_sequences (
+    root_task_id INTEGER PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+    steps_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sequence_runs (
+    id TEXT PRIMARY KEY,
+    root_task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    root_key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'active' CHECK(state IN ('active','completed','cancelled')),
+    UNIQUE(root_task_id, root_key)
+);
+CREATE TABLE IF NOT EXISTS task_occurrences (
+    id INTEGER PRIMARY KEY,
+    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    occurrence_key TEXT NOT NULL,
+    source TEXT NOT NULL CHECK(source IN ('selected','sequence')),
+    scheduled_date TEXT,
+    ready_at TEXT,
+    due_at TEXT,
+    run_id TEXT REFERENCES sequence_runs(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL DEFAULT 0,
+    delay_minutes INTEGER NOT NULL DEFAULT 0,
+    snapshot TEXT,
+    state TEXT NOT NULL DEFAULT 'open' CHECK(state IN ('open','skipped','cancelled')),
+    activation INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(task_id, occurrence_key), UNIQUE(run_id, position)
+);
+CREATE INDEX IF NOT EXISTS ix_occurrences_schedule ON task_occurrences(task_id, scheduled_date);
+CREATE INDEX IF NOT EXISTS ix_occurrences_run ON task_occurrences(run_id, position);
+CREATE TABLE IF NOT EXISTS sequence_subscriptions (
+    root_task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY(root_task_id,user_id)
+);
+CREATE TABLE IF NOT EXISTS sequence_notice_log (
+    occurrence_id INTEGER NOT NULL REFERENCES task_occurrences(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    activation INTEGER NOT NULL,
+    sent_at TEXT NOT NULL,
+    PRIMARY KEY(occurrence_id,user_id,activation)
+);
+"""
+
+SCHEMA_VERSION = "3"
 
 
 def connect(path):
@@ -166,6 +215,30 @@ def init_schema(conn):
     version = int(conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0])
     if version < 2:
         _migrate_to_2(conn)
+    columns = {r[1] for r in conn.execute("PRAGMA table_info(tasks)")}
+    if "selected_days" not in columns:
+        _migrate_to_3(conn)
+    conn.executescript(SCHEDULE_SCHEMA)
+    conn.execute("UPDATE meta SET value=? WHERE key='schema_version'", (SCHEMA_VERSION,))
+    conn.commit()
+
+
+def _migrate_to_3(conn):
+    """Widen recurrence choices without cascading away existing completion history."""
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys=OFF")
+    columns = "id,code,grp,name,description,frequency,owner,hours_month,notes,active,updated_at,due_date,due_weekday,due_monthday,due_time"
+    try:
+        conn.executescript("BEGIN;" + TASKS_TABLE.format(name="tasks_new")
+                          + f"INSERT INTO tasks_new({columns}) SELECT {columns} FROM tasks;"
+                          + "DROP TABLE tasks; ALTER TABLE tasks_new RENAME TO tasks;"
+                          + "UPDATE meta SET value='3' WHERE key='schema_version'; COMMIT;")
+    except sqlite3.Error:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys=ON")
 
 
 def seed_tasks(conn):

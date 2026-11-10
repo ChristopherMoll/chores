@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import task_row, icon, mole with context %}
+{% block title %}{{ run.name }} · Sequence{% endblock %}
+{% block content %}
+<p><a class="text-action" href="{{ url_for('main.home') }}">{{ icon('arrow') }} My tasks</a></p>
+<div class="page-head" id="sequence-heading"><div><p class="eyebrow">One step at a time · Run {{ run.id[:6] }}</p><h1>{{ run.name }}</h1><p class="muted">{{ 'This run is taken care of.' if run.state == 'completed' else 'Remaining steps were cancelled. Completed work is kept.' if run.state == 'cancelled' else 'Each delay starts from the previous step’s actual completion.' }}</p></div>{{ mole('celebrate' if run.state == 'completed' else 'default', 'lg') }}</div>
+<div id="sequence-run-region" data-run-id="{{ run.id }}"><ul class="tasks">{% for r in rows %}{{ task_row(r, true, g.user) }}{% endfor %}</ul></div>
+{% if g.user.role == 'member' %}
+<section class="card sequence-controls"><h2>A little help with the next step.</h2><p class="muted small">Ready notifications are optional. Enable device notifications in <a href="{{ url_for('main.more') }}#push-card">More</a>.</p><form method="post" action="{{ url_for('main.sequence_reminders', task_id=run.root_task_id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="enabled" value="{{ '0' if subscribed else '1' }}"><button class="btn">{{ 'Turn off ready reminders for me' if subscribed else 'Remind me when the next step is ready' }}</button></form></section>
+{% if can_control %}<div id="sequence-actions">{% if run.state == 'active' %}<form method="post" action="{{ url_for('main.cancel_sequence', run_id=run.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="text-action" data-confirm="Cancel the unfinished steps? Completed work and points will be kept.">Cancel remaining steps</button></form>{% endif %}
+{% if can_start %}<form method="post" action="{{ url_for('main.start_sequence', task_id=run.root_task_id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="run_token" value="{{ run_token() }}"><button class="btn">{{ icon('plus') }} Start another run</button></form>{% endif %}</div>{% endif %}
+{% endif %}
+{% endblock %}

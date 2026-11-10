@@ -400,3 +400,29 @@ form.inline { display:inline; }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; animation:none!important; scroll-behavior:auto!important; } }
 :root[data-quiet=true] *, :root[data-quiet=true] *::before, :root[data-quiet=true] *::after { transition:none!important; animation:none!important; }
 .voice-key { width:100%; margin:.5rem 0; padding:.7rem; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.85rem; }
+
+/* Days and sequences share the same calm controls on phones and desktop. */
+.day-picker { display:grid; grid-template-columns:repeat(4,minmax(44px,1fr)); gap:.5rem; margin:.6rem 0; }
+.day-choice { position:relative; margin:0!important; cursor:pointer; }
+.day-choice input { position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
+.day-choice span { display:grid; place-items:center; min-height:44px; padding:.5rem .25rem; border:1px solid var(--line); border-radius:10px; background:var(--paper); font-size:.875rem; }
+.day-choice input:checked + span { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:650; }
+.day-choice input:focus-visible + span { outline:3px solid var(--accent); outline-offset:3px; }
+.sequence-editor { margin:1.2rem 0; }
+.sequence-step-editor { margin:1rem 0; padding:1rem; border:1px solid var(--line); border-radius:12px; min-width:0; }
+.sequence-step-editor .row { flex-wrap:wrap; }
+.sequence-step-editor label { min-width:0; }
+.sequence-group { margin:.8rem 0; border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+.sequence-group > summary { padding:1rem; font-weight:650; cursor:pointer; overflow-wrap:anywhere; }
+.sequence-group > summary span { display:inline-block; font-weight:400; margin-left:.35rem; }
+.sequence-group > .tasks { margin:0; border:0; border-radius:0; }
+.upcoming-steps { margin-top:1.8rem; padding-top:1.4rem; border-top:1px solid var(--line); }
+.task.waiting .tick { opacity:.45; }
+.sequence-controls { margin-top:1.5rem; }
+#sequence-actions { display:flex; flex-wrap:wrap; align-items:center; gap:1rem; margin:1rem 0; }
+.ready-adjustment { margin:1rem 0; display:flex; align-items:end; flex-wrap:wrap; gap:.6rem; }
+.ready-adjustment label { display:flex; flex-direction:column; gap:.4rem; font-size:.875rem; flex:1 1 150px; }
+.ready-adjustment input { width:100%; }
+.task-detail form + form { margin-top:.8rem; }
+@media(min-width:600px) { .day-picker { grid-template-columns:repeat(7,minmax(44px,1fr)); } }
+.task-editor .day-picker { grid-template-columns:repeat(4,minmax(44px,1fr)); }
