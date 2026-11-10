@@ -33,7 +33,7 @@
   <p class="muted small">In the Shortcuts app on your iPhone, tap <strong>+</strong> and name it <strong>I did a chore</strong>. Then add these actions:</p>
   <ol>
     <li><strong>Ask for Input</strong>: type Text, prompt <em>Which chore did you complete?</em></li>
-    <li><strong>Get Contents of URL</strong>: <code>{{ endpoint }}</code>. Tap the arrow to show more, then set Method <strong>POST</strong>, add a header <code>Authorization</code> with the value <code>Bearer</code>, a space, and your key, and set Request Body to <strong>JSON</strong> with a Text field <code>text</code> set to <em>Provided Input</em>.</li>
+    <li><strong>Get Contents of URL</strong>: <code>{{ api_url }}</code>. Tap the arrow to show more, then set Method <strong>POST</strong>, add a header <code>Authorization</code> with the value <code>Bearer</code>, a space, and your key, and set Request Body to <strong>JSON</strong> with a Text field <code>text</code> set to <em>Provided Input</em>.</li>
     <li><strong>Get Dictionary Value</strong>: get <em>Value</em> for <code>speech</code> in <em>Contents of URL</em>.</li>
     <li><strong>Show Result</strong> with <em>Dictionary Value</em>. Siri reads it aloud, and it also appears on Apple Watch and CarPlay.</li>
   </ol>
@@ -41,7 +41,7 @@
   <h3>Optional extras</h3>
   <p class="muted small">Duplicate the shortcut, delete <em>Ask for Input</em>, and set <code>text</code> to fixed words instead:</p>
   <ul>
-    <li><strong>What chores are left</strong>: text <code>what's left</code></li>
+    <li><strong>What chores do I have left today</strong>: text <code>what's left</code>. Siri reads your remaining daily chores, then anything due today or overdue.</li>
     <li><strong>Undo my last chore</strong>: text <code>undo</code> (works for an hour)</li>
     <li><strong>What's my chore score</strong>: text <code>score</code></li>
   </ul>

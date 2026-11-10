@@ -170,7 +170,7 @@ def voice_setup():
         abort(403)
     new_key = voice.create_token(g.user["id"], request.form.get("label", "")) if request.method == "POST" else None
     return render_template("voice.html", new_key=new_key, keys=voice.tokens_for(g.user["id"]),
-                           endpoint=url_for("api.voice_command", _external=True))
+                           api_url=url_for("api.voice_command", _external=True))   # not "endpoint": base.html uses that
 
 
 @bp.post("/voice/keys/<int:token_id>/delete")

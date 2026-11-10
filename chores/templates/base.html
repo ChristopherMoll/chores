@@ -24,7 +24,7 @@
 {% set tasks_on = endpoint in ('main.home', 'main.person') %}
 {% set together_on = endpoint == 'main.compare' %}
 {% set progress_on = endpoint == 'main.progress' %}
-{% set more_on = endpoint in ('main.more', 'main.remind', 'auth.account') or request.blueprint == 'manage' or request.blueprint == 'admin' %}
+{% set more_on = endpoint in ('main.more', 'main.remind', 'main.voice_setup', 'auth.account') or request.blueprint == 'manage' or request.blueprint == 'admin' %}
 <header class="topbar">
   <a class="brand" href="{{ url_for('main.home') }}" aria-label="MoleChores home"><img class="brand-logo" src="{{ url_for('static', filename='logo.png') }}" alt="" width="36" height="36"><span>Mole<wbr>Chores<span class="brand-dot">.</span></span></a>
   <nav class="app-nav" aria-label="Main navigation">

@@ -9,7 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import auth, db, logic, periods
 
-__version__ = "1.5.0"
+__version__ = "1.6.0"
 
 
 def _env_bool(name, default):
