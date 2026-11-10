@@ -2,6 +2,17 @@
 
 All notable changes to this project are recorded here. Versions follow [semantic versioning](https://semver.org): the major number goes up for changes that need a manual step (a data migration or config change), the minor number for new features, and the patch number for fixes.
 
+## [1.7.0] - 2026-11-10
+
+No manual migration: the normal update upgrades SQLite to schema 3, preserving existing tasks, completions, reminders and Siri keys.
+
+### Added
+- **Selected days:** choose any combination of Monday through Sunday, including weekends, with an optional common due time. Every scheduled date has its own completion, points and reminder. Missed dates remain available; skip an individual occurrence without changing the schedule. Schedule edits preserve completed work and existing sequence runs.
+- **Timed sequences:** add ordered follow-ups in the task editor, creating new steps or reusing tasks set to Sequence step. Each delay starts from the previous step's actual completion. Runs survive restarts, can overlap, and retain their original task details, ownership, effort and delays when templates change.
+- **One step at a time:** ready work appears in Today; waiting and blocked steps appear under Coming up without counting against today's progress. A run page groups every step and offers Done early, a per-run ready-time adjustment, cancellation of unfinished work, and Start another run. Undo retracts waiting follow-ups and protects later completed work.
+- **Personal ready reminders:** opt in per sequence; the existing minute notification job sends the next-step nudge and suppresses completed/cancelled steps and duplicate sends. Preferences can be removed in More.
+- CSV export/import includes selected days and ordered sequence references. Siri can complete ready occurrences and activate their follow-ups; it asks the user to choose in the app when more than one date or load could match.
+
 ## [1.6.1] - 2026-11-10
 
 ### Fixed

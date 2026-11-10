@@ -7,11 +7,11 @@ import sqlite3
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
-from . import periods
+from . import periods, scheduling
 from .db import get_db
 
 SHARED, VOLUNTEER = "shared", "volunteer"
-DEFAULT_POINTS = {"daily": 2, "weekly": 5, "monthly": 10, "once": 8, "other": 8}
+DEFAULT_POINTS = {"daily": 2, "weekly": 5, "monthly": 10, "once": 8, "other": 8, "selected": 2, "sequence": 2}
 VOLUNTEER_BONUS = 1.5
 
 
@@ -46,7 +46,7 @@ def points_for(task, owner_at):
     """
     hours = task["hours_month"]
     if hours:
-        minutes = hours * 60 / periods.OCCURRENCES_PER_MONTH[task["frequency"]]
+        minutes = hours * 60 / max(1, scheduling.monthly_occurrences(task))
         base = max(1, round(minutes / 5))
     else:
         base = DEFAULT_POINTS[task["frequency"]]
@@ -82,6 +82,9 @@ def board(owners, d=None):
     one-off stays visible for the rest of the day it was done, then drops off.
     """
     d = d or periods.today()
+    occurrence_rows = scheduling.rows(owners, d)
+    occurrence_keys = {(r["task"]["id"], r["period_key"]) for r in occurrence_rows}
+    sequence_roots = {r[0] for r in get_db().execute("SELECT s.root_task_id FROM task_sequences s JOIN tasks t ON t.id=s.root_task_id WHERE t.active=1")}
     now = periods.now()
     ph = ",".join("?" * len(owners))
     tasks = get_db().execute(
@@ -92,13 +95,21 @@ def board(owners, d=None):
     last = _last_logged([t["id"] for t in tasks if t["frequency"] == "other"])
     out = {f: [] for f in periods.FREQUENCIES}
     for t in tasks:
+        if t["frequency"] in ("selected", "sequence") or (t["id"], periods.period_key(t["frequency"], d)) in occurrence_keys:
+            continue
         c = done.get((t["id"], periods.period_key(t["frequency"], d)))
         if t["frequency"] == "once" and c and c["done_on"] != d.isoformat():
             continue
         out[t["frequency"]].append({"task": t, "done": c is not None, "completion": c,
                                     "period_key": periods.period_key(t["frequency"], d),
                                     "last_on": last.get(t["id"]), "due": periods.due_info(t, now)})
+    for row in occurrence_rows:
+        freq = row["task"]["frequency"]
+        bucket = "selected" if row["source"] == "selected" else freq if row["period_key"] == periods.period_key(freq, d) else "sequence"
+        out[bucket].append(row)
     for f in out:   # undone first, then soonest due, then alphabetical-by-code
+        for row in out[f]:
+            row["has_sequence"] = row["task"]["id"] in sequence_roots
         out[f].sort(key=lambda r: (r["done"], r["due"]["date"] if r["due"] else date.max,
                                    r["task"]["due_time"] or "", r["task"]["code"]))
     return out
@@ -114,11 +125,14 @@ def dashboard(username, d=None):
     """Everything the dashboard needs for one member."""
     mine = board([username, SHARED], d)
     grabs = board([VOLUNTEER], d)
+    d = d or periods.today()
+    weekly_rows = mine["weekly"] + [r for r in mine["selected"] if r["scheduled_date"] and periods.week_start(d) <= r["scheduled_date"] < periods.week_start(d) + timedelta(days=7)]
     return {
         "board": mine,
         "grabs": grabs,
-        "progress": {f: progress(mine[f]) for f in periods.RECURRING},
-        "grabs_open": sum(1 for f in periods.RECURRING + ("once",) for r in grabs[f] if not r["done"]),
+        "progress": {f: progress(weekly_rows if f == "weekly" else mine[f]) for f in periods.RECURRING},
+        "grabs_open": sum(1 for group in grabs.values() for r in group
+                          if not r["done"] and not r.get("waiting") and not r.get("blocked")),
     }
 
 
@@ -148,14 +162,27 @@ def task_views(dash, d=None):
         "other": {"label": "As needed", "hint": "No fixed schedule. Record a task when you take care of it.",
                   "rows": board_["other"]},
     }
-    for view in views.values():
-        view["rows"] = [dict(r, due=periods.due_info(r["task"], datetime.combine(d, periods.now().time()), explicit_only=False))
+    selected = board_["selected"]
+    sequences = board_["sequence"]
+    views["today"]["rows"] += [r for r in selected if r["scheduled_date"] <= d]
+    views["week"]["rows"] += [r for r in selected if r["scheduled_date"] <= week_end]
+    views["month"]["rows"] += [r for r in selected if r["scheduled_date"] <= month_end]
+    for key, end in (("today", d), ("week", week_end), ("month", month_end)):
+        views[key]["rows"] += [r for r in sequences if r["scheduled_date"] is None or r["scheduled_date"] <= end or r.get("waiting")]
+    for key, view in views.items():
+        start = {"today": d, "week": periods.week_start(d), "month": periods.month_start(d)}.get(key)
+        if start:
+            view["rows"] = [r for r in view["rows"] if not (r.get("occurrence_id") and r["done"]
+                            and r["completion"]["done_on"] < start.isoformat())]
+        view["rows"] = [dict(r, due=r["due"] if r.get("occurrence_id") else periods.due_info(r["task"], datetime.combine(d, periods.now().time()), explicit_only=False))
                         for r in view["rows"]]
         view["rows"] = sorted(view["rows"], key=lambda r: (
-            r["done"], periods.due_date(r["task"], d) or date.max,
+            r["done"], (r["due"]["date"] if r["due"] else r.get("scheduled_date")) or periods.due_date(r["task"], d) or date.max,
             r["task"]["due_time"] or "", r["task"]["name"].casefold()))
-        view["progress"] = progress(view["rows"])
-        view["open"] = [r for r in view["rows"] if not r["done"]]
+        view["progress"] = progress([r for r in view["rows"] if not r.get("blocked") and (key != "today" or not r.get("waiting"))])
+        view["open"] = [r for r in view["rows"] if not r["done"] and not r.get("waiting") and not r.get("blocked")]
+        view["upcoming"] = [r for r in view["rows"] if not r["done"] and (r.get("waiting") or r.get("blocked"))]
+        view["remaining"] = len(view["open"]) + (len(view["upcoming"]) if key != "today" else 0)
         view["completed"] = [r for r in view["rows"] if r["done"]]
     return views
 
@@ -174,12 +201,15 @@ def can_steal(user, task):
             and task["owner"] not in (user["username"], SHARED, VOLUNTEER))
 
 
-def toggle(user, task, d=None, desired_done=None, steal=False):
+def toggle(user, task, d=None, desired_done=None, steal=False, occurrence_id=None, early=False):
     """Cross off (or un-cross) a task for its current period. Returns the new state or raises PermissionError.
 
     steal=True also allows crossing off another member's task (see can_steal); the doer gets the points.
     """
     d = d or periods.today()
+    occurrence = scheduling.resolve(task, occurrence_id)
+    if occurrence:
+        return scheduling.toggle(user, occurrence, desired_done, early=early, steal=steal)
     allowed = can_complete(user, task) or (steal and can_steal(user, task))
     db = get_db()
     key = periods.period_key(task["frequency"], d)
@@ -207,12 +237,16 @@ def toggle(user, task, d=None, desired_done=None, steal=False):
             "INSERT INTO completions(task_id, user_id, period_key, done_on, done_at, owner_at, points)"
             " VALUES (?, ?, ?, ?, ?, ?, ?)",
             (task["id"], user["id"], key, d.isoformat(),
-             datetime.now(timezone.utc).isoformat(timespec="seconds"),
+             scheduling.stamp(scheduling.now_utc()) if scheduling.recipe(task["id"]) else datetime.now(timezone.utc).isoformat(timespec="seconds"),
              task["owner"], points_for(task, task["owner"])),
         )
+        scheduling.after_completion(task, key)
         db.commit()
     except sqlite3.IntegrityError:   # the other person crossed it off at the same moment
         db.rollback()
+    except Exception:
+        db.rollback()
+        raise
     return True
 
 
@@ -265,13 +299,16 @@ def streak(username, d=None, limit=366):
 
 def load_hours(username):
     """Assigned monthly hours: own tasks plus half of shared ones."""
-    r = get_db().execute(
-        "SELECT COALESCE(SUM(CASE WHEN owner = ? THEN hours_month END), 0) AS own,"
-        " COALESCE(SUM(CASE WHEN owner = 'shared' THEN hours_month END), 0) AS shared,"
-        " SUM(CASE WHEN owner = ? THEN 1 ELSE 0 END) AS n_own"
-        " FROM tasks WHERE active = 1 AND frequency != 'once'", (username, username)).fetchone()
-    return {"own": r["own"], "shared_half": r["shared"] / 2, "total": r["own"] + r["shared"] / 2,
-            "tasks": r["n_own"] or 0}
+    db = get_db()
+    recurring_steps = set()
+    for seq in db.execute("SELECT s.root_task_id FROM task_sequences s JOIN tasks t ON t.id=s.root_task_id WHERE t.active=1 AND t.frequency!='once'"):
+        recurring_steps.update(step["task_id"] for step in scheduling.recipe(seq["root_task_id"]))
+    tasks = [t for t in db.execute("SELECT * FROM tasks WHERE active=1 AND frequency!='once'")
+             if t["frequency"] != "sequence" or t["id"] in recurring_steps]
+    own = sum(t["hours_month"] or 0 for t in tasks if t["owner"] == username)
+    shared = sum(t["hours_month"] or 0 for t in tasks if t["owner"] == SHARED) / 2
+    return {"own": own, "shared_half": shared, "total": own + shared,
+            "tasks": sum(t["owner"] == username for t in tasks)}
 
 
 BADGES = [

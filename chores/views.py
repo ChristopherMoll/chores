@@ -4,7 +4,7 @@ from datetime import timedelta
 from flask import (Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template, request,
                    url_for)
 
-from . import logic, periods, push, reminders, voice
+from . import logic, periods, push, reminders, voice, scheduling
 from .auth import login_required
 from .db import get_db
 
@@ -48,18 +48,27 @@ def toggle(task_id):
     state = request.form.get("done")
     if state not in (None, "0", "1"):
         abort(400, "Choose whether this task is done.")
+    occurrence_id = request.form.get("occurrence_id", type=int)
+    occurrence = scheduling.get_occurrence(occurrence_id) if occurrence_id else None
+    if occurrence_id and (not occurrence or occurrence["task_id"] != task_id):
+        abort(404)
     expected_period = request.form.get("period")
-    if expected_period and expected_period != periods.period_key(task["frequency"]):
+    actual_period = occurrence["occurrence_key"] if occurrence else periods.period_key(task["frequency"])
+    if expected_period and expected_period != actual_period:
         message = "This task's schedule has moved on. Refresh your list before changing it."
         if wants_json:
             return jsonify(ok=False, error=message), 409
         flash(message, "error")
         return redirect(request.referrer or url_for("main.home"))
     try:
-        logic.toggle(g.user, task, desired_done=None if state is None else state == "1")
-    except PermissionError as e:
+        if not occurrence_id and task["frequency"] in ("selected", "sequence"):
+            occurrence = scheduling.resolve(task)
+            occurrence_id = occurrence["id"]
+        logic.toggle(g.user, task, desired_done=None if state is None else state == "1", occurrence_id=occurrence_id,
+                     early=request.form.get("early") == "1")
+    except (PermissionError, ValueError) as e:
         if wants_json:
-            return jsonify(ok=False, error=str(e)), 403
+            return jsonify(ok=False, error=str(e)), 403 if isinstance(e, PermissionError) else 409
         flash(str(e), "error")
         return redirect(request.referrer or url_for("main.home"))
     if wants_json:
@@ -69,15 +78,25 @@ def toggle(task_id):
         selected = request.form.get("view", "today")
         if selected not in views:
             selected = "today"
+        used_occurrence = scheduling.resolve(task, occurrence_id)
+        used_key = used_occurrence["occurrence_key"] if used_occurrence else actual_period
         completion = get_db().execute(
             "SELECT c.points, c.user_id, u.display_name AS doer FROM completions c JOIN users u ON u.id=c.user_id"
-            " WHERE c.task_id=? AND c.period_key=?", (task_id, periods.period_key(task["frequency"], d))).fetchone()
+            " WHERE c.task_id=? AND c.period_key=?", (task_id, used_key)).fetchone()
+        next_step = None
+        if used_occurrence and used_occurrence["run_id"] and completion:
+            following = get_db().execute("SELECT * FROM task_occurrences WHERE run_id=? AND position=?",
+                                         (used_occurrence["run_id"], used_occurrence["position"] + 1)).fetchone()
+            if following and following["ready_at"]:
+                ready = scheduling.local(following["ready_at"])
+                next_step = {"name": scheduling.occurrence_task(following)["name"], "at": ready.strftime('%a ') + periods.format_time(ready.time())}
         today = views["today"]["progress"]
         return jsonify(ok=True, done=bool(completion), points=completion["points"] if completion else 0,
                        by=completion["doer"] if completion else g.user["display_name"],
                        can_undo=bool(completion and completion["user_id"] == g.user["id"]),
                        today=today,
-                       counts={key: len(view["open"]) for key, view in views.items()},
+                       counts={key: view["remaining"] for key, view in views.items()},
+                       occurrence_id=used_occurrence["id"] if used_occurrence else None, next_step=next_step,
                        tasks_html=render_template("_task_list.html", current_view=views[selected], selected=selected,
                                                   own=True, nags=reminders.task_ids_for(g.user["id"]),
                                                   task_back=request.form.get("return_to", "/")),
@@ -87,6 +106,110 @@ def toggle(task_id):
                        if request.form.get("surface") == "together" else None,
                        name=task["name"])
     return redirect(request.referrer or url_for("main.home"))
+
+
+@bp.get("/occurrences/<int:occurrence_id>")
+@login_required
+def occurrence_link(occurrence_id):
+    occurrence = scheduling.get_occurrence(occurrence_id)
+    if not occurrence:
+        abort(404)
+    if occurrence["run_id"]:
+        return redirect(url_for("main.sequence_run", run_id=occurrence["run_id"], _anchor=f"occurrence-{occurrence_id}"))
+    return render_template("occurrence.html", row=scheduling._display_row(occurrence),
+                           nags=reminders.task_ids_for(g.user["id"]))
+
+
+@bp.post("/occurrences/<int:occurrence_id>/skip")
+@login_required
+def skip_occurrence(occurrence_id):
+    occurrence = scheduling.get_occurrence(occurrence_id)
+    if not occurrence:
+        abort(404)
+    try:
+        scheduling.skip(g.user, occurrence)
+        flash("Occurrence skipped. No points were added.", "ok")
+    except (ValueError, PermissionError) as e:
+        flash(str(e), "error")
+    return redirect(url_for("main.home"))
+
+
+@bp.post("/tasks/<int:task_id>/start-run")
+@login_required
+def start_sequence(task_id):
+    import re
+    task = _task_or_404(task_id)
+    if not logic.can_complete(g.user, task):
+        abort(403)
+    if not scheduling.recipe(task_id):
+        abort(404)
+    token = request.form.get("run_token", "")
+    if not re.fullmatch(r"[a-f0-9]{32}", token):
+        abort(400, "Refresh the page before starting a run.")
+    try:
+        with get_db():
+            run_id = scheduling.start_run(task, "R" + token)
+    except ValueError as e:
+        flash(str(e), "error")
+        return redirect(url_for("manage.task_edit", task_id=task_id))
+    return redirect(url_for("main.sequence_run", run_id=run_id))
+
+
+@bp.get("/sequences/<run_id>")
+@login_required
+def sequence_run(run_id):
+    run = get_db().execute("SELECT * FROM sequence_runs WHERE id=?", (run_id,)).fetchone()
+    if not run:
+        abort(404)
+    rows = scheduling.run_rows(run_id)
+    root = _task_or_404(run["root_task_id"])
+    return render_template("sequence_run.html", run=run, rows=rows,
+                           can_control=logic.can_complete(g.user, rows[0]["task"]) if rows else False,
+                           can_start=logic.can_complete(g.user, root) and bool(scheduling.recipe(root["id"])),
+                           subscribed=bool(get_db().execute("SELECT 1 FROM sequence_subscriptions WHERE root_task_id=? AND user_id=?",
+                                                           (run["root_task_id"], g.user["id"])).fetchone()),
+                           nags=reminders.task_ids_for(g.user["id"]))
+
+
+@bp.post("/occurrences/<int:occurrence_id>/reschedule")
+@login_required
+def reschedule_occurrence(occurrence_id):
+    occurrence = scheduling.get_occurrence(occurrence_id)
+    if not occurrence:
+        abort(404)
+    try:
+        minutes = int(request.form.get("minutes", ""))
+        scheduling.reschedule(g.user, occurrence, minutes)
+        flash("Ready time updated for this run.", "ok")
+    except (ValueError, PermissionError) as e:
+        flash(str(e) or "Choose a whole number of minutes.", "error")
+    return redirect(url_for("main.occurrence_link", occurrence_id=occurrence_id))
+
+
+@bp.post("/sequences/<run_id>/cancel")
+@login_required
+def cancel_sequence(run_id):
+    try:
+        scheduling.cancel_run(g.user, run_id)
+        flash("Remaining steps cancelled. Completed work has been kept.", "ok")
+    except (ValueError, PermissionError) as e:
+        flash(str(e), "error")
+    return redirect(url_for("main.sequence_run", run_id=run_id))
+
+
+@bp.post("/tasks/<int:task_id>/sequence-reminders")
+@login_required
+def sequence_reminders(task_id):
+    _task_or_404(task_id)
+    if g.user["role"] != "member":
+        abort(403)
+    if request.form.get("enabled") == "1":
+        get_db().execute("INSERT OR IGNORE INTO sequence_subscriptions VALUES (?,?)", (task_id, g.user["id"]))
+    else:
+        get_db().execute("DELETE FROM sequence_subscriptions WHERE root_task_id=? AND user_id=?", (task_id, g.user["id"]))
+    get_db().commit()
+    flash("Your sequence reminder preference was saved.", "ok")
+    return redirect(request.referrer or url_for("main.more"))
 
 
 def _task_or_404(task_id):
@@ -104,6 +227,15 @@ def task_link(task_id):
     if g.user["role"] == "admin":
         return redirect(url_for("manage.task_edit", task_id=task_id))
     if not task["active"]:
+        return redirect(url_for("manage.task_edit", task_id=task_id))
+    if task["frequency"] not in ("selected", "sequence"):
+        occurrence = scheduling.resolve(task)
+        if occurrence:
+            return redirect(url_for("main.occurrence_link", occurrence_id=occurrence["id"]))
+    if task["frequency"] in ("selected", "sequence"):
+        choices = scheduling.candidates(task_id) or scheduling.candidates(task_id, include_done=True)
+        if choices:
+            return redirect(url_for("main.occurrence_link", occurrence_id=choices[0]["id"]))
         return redirect(url_for("manage.task_edit", task_id=task_id))
     if task["owner"] == logic.VOLUNTEER:
         return redirect(url_for("main.compare", _anchor=f"task-{task_id}"))
@@ -159,7 +291,10 @@ def more():
     return render_template("more.html", vapid_public=push.public_key() if g.user["role"] == "member" else None,
                            reminder_items=get_db().execute(
                                "SELECT r.task_id, t.name, COUNT(*) AS n FROM reminders r JOIN tasks t ON t.id=r.task_id"
-                               " WHERE r.user_id=? GROUP BY r.task_id ORDER BY t.name", (g.user["id"],)).fetchall())
+                               " WHERE r.user_id=? GROUP BY r.task_id ORDER BY t.name", (g.user["id"],)).fetchall(),
+                           sequence_reminder_items=get_db().execute(
+                               "SELECT t.id,t.name FROM sequence_subscriptions s JOIN tasks t ON t.id=s.root_task_id"
+                               " WHERE s.user_id=? ORDER BY t.name", (g.user["id"],)).fetchall())
 
 
 @bp.route("/voice", methods=["GET", "POST"])

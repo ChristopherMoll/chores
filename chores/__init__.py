@@ -9,7 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import auth, db, logic, periods
 
-__version__ = "1.6.1"
+__version__ = "1.7.0"
 
 
 def _env_bool(name, default):
@@ -65,6 +65,7 @@ def create_app(test_config=None):
     def inject():
         return {
             "csrf_token": auth.csrf_token,
+            "run_token": lambda: secrets.token_hex(16),
             "owner_label": logic.owner_label,
             "FREQ_LABELS": periods.FREQ_LABELS,
             "version": __version__,
