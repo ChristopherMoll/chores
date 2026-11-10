@@ -95,9 +95,12 @@ def normalize(text):
 
 
 def _stem(word):
-    for suffix in ("ing", "es", "s"):
+    for suffix in ("ing", "ed", "es", "s"):
         if word.endswith(suffix) and len(word) - len(suffix) >= 3:
-            return word[: -len(suffix)]
+            word = word[: -len(suffix)]
+            if suffix in ("ing", "ed") and len(word) > 3 and word[-1] == word[-2]:
+                word = word[:-1]   # mopped -> mop, scrubbing -> scrub
+            return word
     return word
 
 
@@ -105,20 +108,56 @@ def _words(text):
     return [_stem(w) for w in normalize(text).split() if w not in FILLER]
 
 
-def _similar(a, b):
-    return a == b or (min(len(a), len(b)) >= 4 and SequenceMatcher(None, a, b).ratio() >= 0.8)
+def _closeness(a, b):
+    """1 for the same word, partial credit for a near miss such as dictation hearing "watch" for "wash"."""
+    if a == b:
+        return 1.0
+    if min(len(a), len(b)) < 3:
+        return 0.0
+    ratio = SequenceMatcher(None, a, b).ratio()
+    if ratio >= 0.8 and min(len(a), len(b)) >= 4:
+        return 1.0
+    return ratio if ratio >= 0.6 else 0.0
+
+
+def _name_word_credit(heard, wanted):
+    return [max(_closeness(w, h) for h in heard) for w in wanted]
+
+
+def _fully_heard(spoken, name):
+    """How many words the task's name has, if every one of them was clearly heard; otherwise 0."""
+    heard, wanted = _words(spoken), _words(name)
+    if heard and wanted and all(c == 1.0 for c in _name_word_credit(heard, wanted)):
+        return len(wanted)
+    return 0
+
+
+def _most_specific(phrase, tasks):
+    """'wash laundry' means Wash Laundry, not Laundry: the longest name heard in full wins outright.
+
+    Only when its name is longer than every other candidate's, so a mishearing like "watch laundry"
+    still asks rather than settling for the shorter name.
+    """
+    lengths = sorted(((len(_words(t["name"])), _fully_heard(phrase, t["name"]), t) for t in tasks),
+                     key=lambda x: x[0], reverse=True)
+    (top_len, top_full, top), runner_up = lengths[0], lengths[1]
+    return top if top_full and top_len > runner_up[0] else None
 
 
 def score(spoken, name):
-    """0..1: mostly how much of the task's name was heard, a little for how few words were left over."""
+    """0..1: mostly how much of the task's name was heard, a little for how few words were left over.
+
+    At least one word must be a clear match; near misses only add to that, so they can
+    separate two similar tasks but never pick a task on their own.
+    """
     heard, wanted = _words(spoken), _words(name)
     if not heard or not wanted:
         return 0.0
-    found = sum(1 for w in wanted if any(_similar(w, h) for h in heard))
-    used = sum(1 for h in heard if any(_similar(h, w) for w in wanted))
-    if not found:
+    best_wanted = _name_word_credit(heard, wanted)
+    if not any(c == 1.0 for c in best_wanted):
         return 0.0
-    return 0.7 * found / len(wanted) + 0.3 * used / len(heard)
+    best_heard = [max(_closeness(h, w) for w in wanted) for h in heard]
+    return 0.7 * sum(best_wanted) / len(wanted) + 0.3 * sum(best_heard) / len(heard)
 
 
 def _spoken_list(names):
@@ -155,10 +194,14 @@ def _complete(user, phrase):
     pool = mine or ranked   # your own tasks win; otherwise anyone's
     if pool:
         close = [t for s, t in pool if s >= pool[0][0] - AMBIGUOUS_GAP]
+        if len(close) > 1 and (specific := _most_specific(phrase, close)):
+            close = [specific]
         if len(close) > 1:
-            return _reply(False, "ambiguous", f"Did you mean {_spoken_list(t['name'] for t in close[:3])}? "
-                          "Say the full name and I'll cross it off.", options=[t["name"] for t in close[:3]])
-        task = pool[0][1]
+            options = [t["name"] for t in close[:3]]
+            _record_miss(user["id"], f"{phrase} (asked: {_spoken_list(options)})")
+            return _reply(False, "ambiguous", f"I heard “{phrase}”. Did you mean {_spoken_list(options)}? "
+                          "Say the full name and I'll cross it off.", options=options, heard=phrase)
+        task = close[0]
         if task["owner"] == logic.VOLUNTEER:
             return _reply(False, "volunteer", f"{task['name']} is up for grabs. Claim it in the app first.")
         return _cross_off(user, task)

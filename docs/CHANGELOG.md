@@ -2,6 +2,12 @@
 
 All notable changes to this project are recorded here. Versions follow [semantic versioning](https://semver.org): the major number goes up for changes that need a manual step (a data migration or config change), the minor number for new features, and the patch number for fixes.
 
+## [1.6.1] - 2026-11-10
+
+### Fixed
+- Siri kept asking "Wash Laundry or Fold the Laundry?" when dictation misheard one word, such as "watch laundry" for "wash laundry". A misheard word scored nothing, so the two tasks tied on "laundry". Near misses now get partial credit, enough to tell similar tasks apart but never enough to pick a task on their own. When every word of a longer name is heard, that task beats a shorter one ("wash laundry" means Wash Laundry, not Laundry). Past tenses like "mopped" and "folded" are understood too.
+- When Siri does need to ask, it now says what it heard first ("I heard 'watch laundry'. Did you mean…"), and the Admin page lists those phrases alongside the ones that matched nothing.
+
 ## [1.6.0] - 2026-11-09
 
 ### Added
