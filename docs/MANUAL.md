@@ -87,6 +87,18 @@ iOS only allows push for web apps saved to the home screen, and needs iOS 16.4 o
 
 Do this on each device you want reminders on. Push needs the real HTTPS site, so it won't work over plain-HTTP LAN testing.
 
+### Siri
+
+Say **"Hey Siri, I did a chore"**, then name it, and Siri crosses it off and tells you how many are left today. It works through a shortcut you build once in Apple's Shortcuts app. **More → Siri** walks through it and gives you a personal voice key for each iPhone.
+
+- Matching is forgiving: "I did the dishes" or "took out the trash" find *Dishes* and *Trash & Recycling*. If two tasks sound alike, Siri asks which you meant and changes nothing.
+- Your own and Shared tasks come first. If you name your partner's task, Siri crosses it off anyway, since you've probably already done it, and sends your partner a "Task stolen!" notification. You get the points. If your partner has no notifications set up, Siri tells you to mention it yourself.
+- Voice never claims a Needs Volunteer task, so claim those in the app. The app itself still only lets you cross off your own, Shared and volunteer tasks.
+- Saying the same thing twice is safe. "Undo" puts back your most recent cross-off from the last hour; undoing a stolen task sends your partner a "Never mind" notification.
+- Optional extra shortcuts send fixed words: "what's left", "undo" or "score".
+- Phrases that match no task are kept for 30 days and shown to admins on the Admin page, to help with renaming tasks.
+- Removing a key under **More → Siri** disconnects that shortcut immediately. Admin accounts can't have voice keys.
+
 ### Shared tasks
 
 A *Shared* task shows up on both dashboards, and whichever of you does it crosses it off for both of you. The ✓ shows who did it. Only the person who crossed it off can undo it, so nobody can accidentally erase the other person's work.
@@ -295,6 +307,7 @@ Seven tables (see `chores/db.py`):
 - Passwords are hashed with scrypt (Werkzeug default). There are no default passwords: `init` asks for them, or generates random ones.
 - CSRF tokens on every POST. Session cookies are HttpOnly, SameSite=Lax, and Secure in production. The session is cleared at login.
 - Each IP is locked out for 15 minutes after 8 failed logins.
+- The Siri API under `/api/v1/` accepts only a personal key in the `Authorization` header and ignores the session cookie, which is why it can skip CSRF. Keys are random 256-bit values stored as SHA-256 hashes, work only for members, and can cross off the member's own, Shared or other members' tasks (never volunteer ones), undo the member's own recent cross-off, or read their lists. Nothing else is reachable with a key.
 - Strict security headers: CSP with no inline script or style, `X-Frame-Options: DENY`, nosniff, same-origin referrer. This is also why colours and bar widths are set from `data-` attributes by `app.js` rather than inline styles.
 - The systemd unit runs as an unprivileged `chores` user with a read-only filesystem except `/var/lib/chores`.
 - Push subscriptions are only accepted for known push services, so a logged-in user can't make the server call an arbitrary URL. The VAPID private key is readable only by the `chores` user.

@@ -399,3 +399,4 @@ form.inline { display:inline; }
 @media(max-width:360px) { .wrap { padding-left:14px; padding-right:14px; } .hero-mole { width:78px; height:78px; } .period-tabs a { font-size:.78rem; gap:.25rem; } ul.tasks { padding:0 .75rem; } .task { gap:.35rem; } .progress-stats { gap:.5rem; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; animation:none!important; scroll-behavior:auto!important; } }
 :root[data-quiet=true] *, :root[data-quiet=true] *::before, :root[data-quiet=true] *::after { transition:none!important; animation:none!important; }
+.voice-key { width:100%; margin:.5rem 0; padding:.7rem; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.85rem; }

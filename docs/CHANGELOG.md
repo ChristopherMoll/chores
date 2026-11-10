@@ -2,6 +2,15 @@
 
 All notable changes to this project are recorded here. Versions follow [semantic versioning](https://semver.org): the major number goes up for changes that need a manual step (a data migration or config change), the minor number for new features, and the patch number for fixes.
 
+## [1.5.0] - 2026-11-09
+
+No manual step: the two new tables are created by the normal update.
+
+### Added
+- **Siri:** "Hey Siri, I did a chore" crosses off a task by voice through an Apple Shortcut. More → Siri creates and removes personal voice keys and explains how to build the shortcut. Voice can also say what's left today, your weekly score, and undo your last cross-off from the past hour.
+- Naming your partner's task by voice crosses it off for them, gives you the points, and sends them a "Task stolen!" notification. Undoing it sends a "Never mind". Voice never claims a Needs Volunteer task, and asks instead of guessing when two tasks sound alike.
+- The Admin page lists voice phrases that matched no task over the last 30 days.
+
 ## [1.4.2] - 2026-11-09
 
 ### Fixed

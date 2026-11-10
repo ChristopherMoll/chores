@@ -87,6 +87,24 @@ CREATE TABLE IF NOT EXISTS reminder_log (
     PRIMARY KEY (reminder_id, occurrence)
 );
 
+-- Personal keys for the Siri Shortcut. Only a SHA-256 of each key is kept; deleting a row revokes it.
+CREATE TABLE IF NOT EXISTS api_tokens (
+    id           INTEGER PRIMARY KEY,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    label        TEXT    NOT NULL,
+    token_hash   TEXT    NOT NULL UNIQUE,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    last_used_at TEXT
+);
+
+-- Voice phrases that matched no task, kept 30 days so admins can see what people actually say.
+CREATE TABLE IF NOT EXISTS voice_misses (
+    id       INTEGER PRIMARY KEY,
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    phrase   TEXT    NOT NULL,
+    heard_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 

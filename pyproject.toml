@@ -1,6 +1,6 @@
 [project]
 name = "chores"
-version = "1.4.2"
+version = "1.5.0"
 description = "Household task tracker for the Moll household (chores.moll.casa)"
 readme = "README.md"
 requires-python = ">=3.11"

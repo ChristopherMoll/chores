@@ -9,7 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import auth, db, logic, periods
 
-__version__ = "1.4.2"
+__version__ = "1.5.0"
 
 
 def _env_bool(name, default):
@@ -54,7 +54,8 @@ def create_app(test_config=None):
     app.before_request(auth.load_user)
     app.before_request(auth.check_csrf)
 
-    from . import admin, cms, views
+    from . import admin, api, cms, views
+    app.register_blueprint(api.bp)
     app.register_blueprint(auth.bp)
     app.register_blueprint(views.bp)
     app.register_blueprint(cms.bp)

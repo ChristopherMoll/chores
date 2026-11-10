@@ -47,6 +47,8 @@ def csrf_token():
 def check_csrf():
     if request.method != "POST":
         return
+    if request.blueprint == "api":   # authenticated by header key, never by cookie (see api.py)
+        return
     sent = request.form.get("csrf") or request.headers.get("X-CSRF-Token", "")
     expected = session.get("csrf", "")
     if not expected or not hmac.compare_digest(sent.encode(), expected.encode()):

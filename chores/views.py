@@ -4,7 +4,7 @@ from datetime import timedelta
 from flask import (Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template, request,
                    url_for)
 
-from . import logic, periods, push, reminders
+from . import logic, periods, push, reminders, voice
 from .auth import login_required
 from .db import get_db
 
@@ -160,6 +160,26 @@ def more():
                            reminder_items=get_db().execute(
                                "SELECT r.task_id, t.name, COUNT(*) AS n FROM reminders r JOIN tasks t ON t.id=r.task_id"
                                " WHERE r.user_id=? GROUP BY r.task_id ORDER BY t.name", (g.user["id"],)).fetchall())
+
+
+@bp.route("/voice", methods=["GET", "POST"])
+@login_required
+def voice_setup():
+    """Siri setup: personal keys for the Shortcut. A new key is shown once, on this response only."""
+    if g.user["role"] != "member":
+        abort(403)
+    new_key = voice.create_token(g.user["id"], request.form.get("label", "")) if request.method == "POST" else None
+    return render_template("voice.html", new_key=new_key, keys=voice.tokens_for(g.user["id"]),
+                           endpoint=url_for("api.voice_command", _external=True))
+
+
+@bp.post("/voice/keys/<int:token_id>/delete")
+@login_required
+def voice_key_delete(token_id):
+    if not voice.revoke(g.user["id"], token_id):
+        abort(404)
+    flash("Voice key removed. Any shortcut using it stops working now.", "ok")
+    return redirect(url_for("main.voice_setup"))
 
 
 @bp.post("/reminders/<int:reminder_id>/delete")
