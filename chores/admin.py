@@ -12,7 +12,7 @@ from importlib.metadata import version as pkg_version
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 
-from . import __version__
+from . import __version__, voice
 from .auth import admin_required, hash_password
 from .db import get_db
 
@@ -53,7 +53,8 @@ def system():
         "db_path": path,
         "db_size": os.path.getsize(path) if os.path.exists(path) else 0,
     }
-    return render_template("admin/system.html", info=info, counts=counts, settings=settings)
+    return render_template("admin/system.html", info=info, counts=counts, settings=settings,
+                           misses=voice.recent_misses())
 
 
 @bp.route("/users", methods=["GET", "POST"])

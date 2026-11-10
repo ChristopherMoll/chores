@@ -168,20 +168,30 @@ def can_complete(user, task):
     return task["owner"] in (user["username"], SHARED, VOLUNTEER) and task["active"]
 
 
-def toggle(user, task, d=None, desired_done=None):
-    """Cross off (or un-cross) a task for its current period. Returns the new state or raises PermissionError."""
+def can_steal(user, task):
+    """Voice may cross off another member's task. Volunteer tasks still have to be claimed in the app."""
+    return (user["role"] == "member" and task["active"]
+            and task["owner"] not in (user["username"], SHARED, VOLUNTEER))
+
+
+def toggle(user, task, d=None, desired_done=None, steal=False):
+    """Cross off (or un-cross) a task for its current period. Returns the new state or raises PermissionError.
+
+    steal=True also allows crossing off another member's task (see can_steal); the doer gets the points.
+    """
     d = d or periods.today()
+    allowed = can_complete(user, task) or (steal and can_steal(user, task))
     db = get_db()
     key = periods.period_key(task["frequency"], d)
     existing = db.execute("SELECT * FROM completions WHERE task_id = ? AND period_key = ?",
                           (task["id"], key)).fetchone()
     # Explicit state makes a repeated request safe after an interrupted connection.
     if desired_done is True and existing:
-        if not can_complete(user, task):
+        if not allowed:
             raise PermissionError("That task belongs to someone else.")
         return True
     if desired_done is False and not existing:
-        if not can_complete(user, task):
+        if not allowed:
             raise PermissionError("That task belongs to someone else.")
         return False
     if existing:
@@ -190,7 +200,7 @@ def toggle(user, task, d=None, desired_done=None):
         db.execute("DELETE FROM completions WHERE id = ?", (existing["id"],))
         db.commit()
         return False
-    if not can_complete(user, task):
+    if not allowed:
         raise PermissionError("That task belongs to someone else.")
     try:
         db.execute(

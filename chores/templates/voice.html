@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, mole with context %}
+{% block title %}Siri{% endblock %}
+{% block content %}
+<p><a href="{{ url_for('main.more') }}" class="text-action">{{ icon('arrow') }} Back to More</a></p>
+<div class="mole-note page-title">{{ mole('suggestion', 'lg') }}<div><p class="eyebrow">Hands busy?</p><h1>Tell Siri.</h1><p class="muted">Say “Hey Siri, I did a chore”, then name it. Siri crosses it off and tells you what’s left.</p></div></div>
+
+{% if new_key %}
+<section class="card" id="new-key">
+  <h2>Your new voice key</h2>
+  <p>Copy it into your shortcut now. For your security it won’t be shown again.</p>
+  <input class="voice-key" type="text" readonly value="{{ new_key }}" aria-label="Voice key" autocomplete="off" spellcheck="false">
+  <p class="muted small">Anyone with this key can cross off your tasks, so keep it out of shortcuts you share.</p>
+</section>
+{% endif %}
+
+<div class="two-col">
+  <section class="card">
+    <h2>Your voice keys</h2>
+    <p class="muted small">One key per iPhone. Removing a key disconnects that shortcut straight away.</p>
+    {% if keys %}<ul class="reminder-list">{% for k in keys %}<li><span>{{ k.label }}<br><span class="muted small">{{ 'Last used ' ~ k.last_used_at[:10] if k.last_used_at else 'Not used yet' }}</span></span><form method="post" action="{{ url_for('main.voice_key_delete', token_id=k.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="text-action">Remove</button></form></li>{% endfor %}</ul>{% else %}<p class="muted">No keys yet.</p>{% endif %}
+  </section>
+  <form method="post" class="card form">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <h2>Create a key</h2>
+    <label>Which device? <input name="label" maxlength="40" placeholder="Chris’s iPhone"></label>
+    <div class="form-actions"><button class="btn primary">Create key</button></div>
+  </form>
+</div>
+
+<section class="card">
+  <h2>Build the shortcut</h2>
+  <p class="muted small">In the Shortcuts app on your iPhone, tap <strong>+</strong> and name it <strong>I did a chore</strong>. Then add these actions:</p>
+  <ol>
+    <li><strong>Ask for Input</strong>: type Text, prompt <em>Which chore did you complete?</em></li>
+    <li><strong>Get Contents of URL</strong>: <code>{{ endpoint }}</code>. Tap the arrow to show more, then set Method <strong>POST</strong>, add a header <code>Authorization</code> with the value <code>Bearer</code>, a space, and your key, and set Request Body to <strong>JSON</strong> with a Text field <code>text</code> set to <em>Provided Input</em>.</li>
+    <li><strong>Get Dictionary Value</strong>: get <em>Value</em> for <code>speech</code> in <em>Contents of URL</em>.</li>
+    <li><strong>Show Result</strong> with <em>Dictionary Value</em>. Siri reads it aloud, and it also appears on Apple Watch and CarPlay.</li>
+  </ol>
+  <p class="muted small">Run it once by tapping it and allow it to connect. Turn on <strong>Show on Apple Watch</strong> in the shortcut’s details if you’d like it there.</p>
+  <h3>Optional extras</h3>
+  <p class="muted small">Duplicate the shortcut, delete <em>Ask for Input</em>, and set <code>text</code> to fixed words instead:</p>
+  <ul>
+    <li><strong>What chores are left</strong>: text <code>what's left</code></li>
+    <li><strong>Undo my last chore</strong>: text <code>undo</code> (works for an hour)</li>
+    <li><strong>What's my chore score</strong>: text <code>score</code></li>
+  </ul>
+</section>
+{% endblock %}
