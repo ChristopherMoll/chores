@@ -10,13 +10,13 @@ from zoneinfo import ZoneInfo
 
 from flask import current_app
 
-FREQUENCIES = ("daily", "weekly", "monthly", "once", "other")
-RECURRING = ("daily", "weekly", "monthly")
+FREQUENCIES = ("daily", "weekly", "monthly", "once", "other", "selected", "sequence")
+RECURRING = ("daily", "weekly", "monthly", "selected")
 FREQ_LABELS = {"daily": "Today", "weekly": "This week", "monthly": "This month",
-               "once": "One-off", "other": "As needed"}
+               "once": "One-off", "other": "As needed", "selected": "Selected days", "sequence": "Sequence step"}
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 # Average occurrences per month, used to turn monthly hours into per-occurrence effort.
-OCCURRENCES_PER_MONTH = {"daily": 30.44, "weekly": 4.35, "monthly": 1.0, "once": 1.0, "other": 1.0}
+OCCURRENCES_PER_MONTH = {"daily": 30.44, "weekly": 4.35, "monthly": 1.0, "once": 1.0, "other": 1.0, "sequence": 1.0}
 ONCE_KEY = "ONCE"
 END_OF_DAY = time(23, 59)
 
@@ -30,12 +30,17 @@ def now_local():
 
 
 def today():
+    if current_app.config.get("NOW_OVERRIDE"):
+        return now().date()
     override = current_app.config.get("TODAY_OVERRIDE")   # tests only
     return date.fromisoformat(override) if override else now_local().date()
 
 
 def now():
     """Local wall-clock time as a naive datetime. Noon on the overridden day in tests."""
+    if current_app.config.get("NOW_OVERRIDE"):
+        value = datetime.fromisoformat(current_app.config["NOW_OVERRIDE"])
+        return value.astimezone(tz()).replace(tzinfo=None) if value.tzinfo else value
     if current_app.config.get("TODAY_OVERRIDE"):
         return datetime.combine(today(), time(12))
     return now_local().replace(tzinfo=None)
@@ -64,6 +69,8 @@ def period_key(freq, d=None):
         return f"M{d:%Y-%m}"
     if freq == "once":
         return ONCE_KEY
+    if freq == "selected":
+        return f"S{d.isoformat()}"
     return f"O{d.isoformat()}"
 
 
@@ -102,6 +109,9 @@ def due_date(task, d):
     their period. "Other" tasks, and one-offs without a date, have no due date.
     """
     freq = task["frequency"]
+    if freq == "selected":
+        days = {int(v) for v in task["selected_days"].split(",") if v}
+        return next((d + timedelta(days=n) for n in range(7) if (d + timedelta(days=n)).weekday() in days), None)
     if freq == "daily":
         return d
     if freq == "weekly":
@@ -122,7 +132,7 @@ def due_at(task, d):
     day = due_date(task, d)
     if day is None:
         return None
-    if task["frequency"] == "daily" and task["due_time"]:
+    if task["frequency"] in ("daily", "selected") and task["due_time"]:
         return datetime.combine(day, time.fromisoformat(task["due_time"]))
     return datetime.combine(day, END_OF_DAY)
 
@@ -135,7 +145,8 @@ def format_time(value):
 
 def has_explicit_due(task):
     freq = task["frequency"]
-    return bool((freq == "daily" and task["due_time"])
+    return bool((freq == "selected" and task["selected_days"])
+                or (freq == "daily" and task["due_time"])
                 or (freq == "weekly" and task["due_weekday"] is not None)
                 or (freq == "monthly" and task["due_monthday"])
                 or (freq == "once" and task["due_date"]))
@@ -175,6 +186,9 @@ def due_summary(task):
     if not has_explicit_due(task):
         return ""
     freq = task["frequency"]
+    if freq == "selected":
+        days = ", ".join(WEEKDAYS[int(v)][:3] for v in task["selected_days"].split(",") if v)
+        return days + (f" by {format_time(task['due_time'])}" if task["due_time"] else "")
     if freq == "daily":
         return format_time(task["due_time"])
     if freq == "weekly":

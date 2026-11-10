@@ -84,19 +84,38 @@
     }
   }
 
-  async function setTask(url, desired, taskId, period) {
+  async function refreshScheduledRegions() {
+    const response = await fetch(location.href, {cache: "no-store", credentials: "same-origin"});
+    if (!response.ok || response.redirected) { needsRefresh = true; return; }
+    const page = new DOMParser().parseFromString(await response.text(), "text/html");
+    const expanded = all(".task-body[open]").map(el => el.closest(".task").dataset.rowKey);
+    const closedRuns = all("[data-run-group]:not([open])").map(el => el.dataset.runGroup);
+    const completedOpen = !!query(".completed-group[open]");
+    ["tasks-region", "volunteer-region", "sequence-run-region", "sequence-heading", "sequence-actions", "occurrence-region"].forEach(id => {
+      const current = document.getElementById(id), next = page.getElementById(id);
+      if (current && next) { current.replaceWith(next); paint(next); setupForms(next); }
+    });
+    expanded.forEach(id => query('[data-row-key="' + id + '"] .task-body')?.setAttribute("open", ""));
+    closedRuns.forEach(id => all('[data-run-group="' + id + '"]').forEach(el => el.removeAttribute("open")));
+    if (completedOpen) query(".completed-group")?.setAttribute("open", "");
+    all("[data-view-count]", page).forEach(next => all('[data-view-count="' + next.dataset.viewCount + '"]').forEach(el => { el.textContent = next.textContent; }));
+  }
+
+  async function setTask(url, desired, taskId, period, occurrenceId = null, early = false) {
     if (savingTask) return;
     if (!navigator.onLine) { toast("You're offline. Reconnect, then try again.", "error"); return; }
     savingTask = true;
-    const row = query('[data-task="' + taskId + '"]');
+    const row = document.getElementById(occurrenceId ? 'occurrence-' + occurrenceId : 'task-' + taskId);
     const nextIndex = row ? all(".tasks > .task:not(.done)").indexOf(row) : 0;
-    const expandedIds = all(".task-body[open]").map(el => el.closest(".task").dataset.task);
+    const expandedIds = all(".task-body[open]").map(el => el.closest(".task").dataset.rowKey);
     const completedOpen = !!query(".completed-group[open]");
     row?.classList.add("saving");
     all(".tick").forEach(button => { button.dataset.wasDisabled = String(button.disabled); button.disabled = true; });
     const data = new FormData();
     data.set("done", desired ? "1" : "0");
     if (period) data.set("period", period);
+    if (occurrenceId) data.set("occurrence_id", occurrenceId);
+    if (early) data.set("early", "1");
     data.set("view", query(".dashboard")?.dataset.view || "today");
     data.set("return_to", location.pathname + location.search);
     data.set("surface", query("#volunteer-region") ? "together" : "tasks");
@@ -116,10 +135,12 @@
         taskRegion.innerHTML = result.tasks_html;
         paint(taskRegion);
         if (completedOpen) query(".completed-group", taskRegion)?.setAttribute("open", "");
-        expandedIds.forEach(id => query('[data-task="' + id + '"] .task-body', taskRegion)?.setAttribute("open", ""));
+        expandedIds.forEach(id => query('[data-row-key="' + id + '"] .task-body', taskRegion)?.setAttribute("open", ""));
       }
       const volunteerRegion = query("#volunteer-region");
       if (volunteerRegion) { volunteerRegion.innerHTML = result.volunteer_html; paint(volunteerRegion); }
+      if (query("#sequence-run-region, #occurrence-region")) await refreshScheduledRegions();
+      else { if (taskRegion) setupForms(taskRegion); if (volunteerRegion) setupForms(volunteerRegion); }
       Object.entries(result.counts).forEach(([key, count]) => all('[data-view-count="' + key + '"]').forEach(el => { el.textContent = count; }));
       const mole = query("#hero-mole");
       const lede = query("#hero-lede");
@@ -128,8 +149,9 @@
       if (lede) lede.textContent = allDone ? "Today's list is taken care of." : result.today.total ? "A little at a time." : "A little breathing room today.";
       if (result.done) {
         const ownCompletion = result.can_undo;
-        const message = ownCompletion ? (allDone && taskRegion ? "Today's list is taken care of. Enjoy the space you made." : "One more thing taken care of. +" + result.points + " points.") : result.by + " already took care of this. Thank you both.";
-        toast(message, allDone && taskRegion ? "win" : "", ownCompletion ? () => setTask(url, false, taskId, period) : null);
+        let message = ownCompletion ? (allDone && taskRegion ? "Today's list is taken care of. Enjoy the space you made." : "One more thing taken care of. +" + result.points + " points.") : result.by + " already took care of this. Thank you both.";
+        if (result.next_step) message += " " + result.next_step.name + " will be ready " + result.next_step.at + ".";
+        toast(message, allDone && taskRegion ? "win" : "", ownCompletion ? () => setTask(url, false, taskId, period, result.occurrence_id || occurrenceId) : null);
       } else {
         toast("Task restored to your list.");
       }
@@ -140,7 +162,7 @@
       }
       await refreshTogether();
     } catch (error) {
-      const retry = error.refresh ? () => location.reload() : error.noRetry ? null : () => setTask(url, desired, taskId, period);
+      const retry = error.refresh ? () => location.reload() : error.noRetry ? null : () => setTask(url, desired, taskId, period, occurrenceId, early);
       toast(error.name === "AbortError" || error instanceof TypeError ? "Couldn't confirm the save. It's safe to try again." : error.message, "error", retry, error.refresh ? "Refresh list" : "Try again");
     } finally {
       clearTimeout(timeout);
@@ -153,7 +175,7 @@
     const form = event.target;
     if (!form.classList.contains("tick-form")) return;
     event.preventDefault();
-    setTask(form.action, query('[name="done"]', form).value === "1", form.closest(".task").dataset.task, query('[name="period"]', form).value);
+    setTask(form.action, query('[name="done"]', form).value === "1", form.closest(".task").dataset.task, query('[name="period"]', form).value, query('[name="occurrence_id"]', form)?.value, query('[name="early"]', form)?.value === "1");
   });
 
   document.addEventListener("click", event => {
@@ -166,12 +188,37 @@
     all("select[data-due-switch]", scope).forEach(select => {
       const form = select.closest("form");
       const sync = () => {
-        all("[data-due-for]", form).forEach(el => { el.hidden = el.dataset.dueFor !== select.value; });
+        all("[data-due-for]", form).forEach(el => { el.hidden = !el.dataset.dueFor.split(" ").includes(select.value); });
         const hoursLabel = query("[data-hours-label]", form);
         if (hoursLabel) hoursLabel.textContent = select.value === "once" ? "Estimated total hours" : "Estimated hours per month";
       };
       select.addEventListener("change", sync);
       sync();
+    });
+    all(".sequence-editor", scope).forEach(editor => {
+      const setupStep = step => {
+        const choice = query("[data-step-choice]", step);
+        const sync = () => {
+          query("[data-step-name]", step).hidden = !!choice.value;
+          query("[data-step-effort]", step).hidden = !!choice.value;
+        };
+        choice.addEventListener("change", sync); sync();
+        const remove = query("[data-remove-step]", step);
+        remove.hidden = false;
+        remove.addEventListener("click", () => { step.closest("form").classList.add("dirty"); step.remove(); });
+      };
+      all("[data-sequence-step]", editor).forEach(setupStep);
+      const add = query("[data-add-step]", editor);
+      add.hidden = false;
+      add.addEventListener("click", () => {
+        const list = query("[data-sequence-steps]", editor);
+        if (all("[data-sequence-step]", list).length >= 20) { toast("A sequence can have up to 20 follow-ups."); return; }
+        const fragment = query("[data-sequence-template]", editor).content.cloneNode(true);
+        list.appendChild(fragment);
+        setupStep(list.lastElementChild);
+        query("[name=step_name]", list.lastElementChild).focus();
+        editor.closest("form").classList.add("dirty");
+      });
     });
     all("[data-track-changes]", scope).forEach(form => {
       form.addEventListener("input", () => form.classList.add("dirty"));
@@ -198,6 +245,8 @@
     const value = input => input.type === "checkbox" ? input.checked : input.value;
     const initial = new Map(rows.map(row => [row, new Map(fields(row).map(input => [input, value(input)]))]));
     const loads = JSON.parse(deal.dataset.loads);
+    const workload = JSON.parse(deal.dataset.workload);
+    const sequenceLinks = JSON.parse(deal.dataset.sequences);
     const save = query("[data-grid-save]", deal);
     save.disabled = true;
     query("[data-bulk-tools]", deal).hidden = false;
@@ -208,11 +257,8 @@
     };
     function updateDeal() {
       let changed = 0;
-      const totals = Object.fromEntries(Object.entries(loads).map(([name, load]) => [name, load.total]));
-      function account(item, direction) {
-        if (!item.active || item.frequency === "once") return;
-        Object.keys(totals).forEach(name => { if (item.owner === name || item.owner === "shared") totals[name] += direction * item.hours * (item.owner === "shared" ? 0.5 : 1); });
-      }
+      const totals = Object.fromEntries(Object.keys(loads).map(name => [name, 0]));
+      const tasks = Object.fromEntries(workload.map(task => [task.id, task]));
       rows.forEach(row => {
         const dirty = fields(row).some(input => value(input) !== initial.get(row).get(input));
         row.classList.toggle("row-dirty", dirty);
@@ -220,7 +266,15 @@
         const current = state(row, false);
         row.classList.toggle("off", !current.active);
         query(".owner-sel", row).dataset.owner = current.owner;
-        account(state(row, true), -1); account(current, 1);
+        tasks[row.dataset.taskId] = current;
+      });
+      const recurringSteps = new Set();
+      Object.entries(sequenceLinks).forEach(([rootId, steps]) => {
+        if (tasks[rootId]?.active && tasks[rootId].frequency !== "once") steps.forEach(id => recurringSteps.add(String(id)));
+      });
+      Object.entries(tasks).forEach(([id, item]) => {
+        if (!item.active || item.frequency === "once" || (item.frequency === "sequence" && !recurringSteps.has(id))) return;
+        Object.keys(totals).forEach(name => { if (item.owner === name || item.owner === "shared") totals[name] += item.hours * (item.owner === "shared" ? 0.5 : 1); });
       });
       Object.entries(totals).forEach(([name, total]) => { const el = query('[data-load-for="' + name + '"]'); if (el) el.textContent = Math.max(0, total).toLocaleString(undefined, { maximumFractionDigits: 1 }); });
       query("[data-load-caption]").textContent = changed ? "Preview after saving · estimated hours per month" : "Estimated hours per month · half of shared work each";
@@ -308,12 +362,12 @@
   if (installedMessage) installedMessage.hidden = !installed;
 
   function revealLinkedTask() {
-    const match = location.hash.match(/^#task-(\d+)$/);
+    const match = location.hash.match(/^#(task|occurrence)-(\d+)$/);
     if (!match) return;
-    const task = document.getElementById("task-" + match[1]);
+    const task = document.getElementById(match[1] + "-" + match[2]);
     if (!task) {
       // Old notifications used a dashboard anchor. Route them to the correct list.
-      if (query(".dashboard")) location.replace("/tasks/" + match[1]);
+      if (query(".dashboard")) location.replace((match[1] === "task" ? "/tasks/" : "/occurrences/") + match[2]);
       return;
     }
     let parent = task.parentElement;
@@ -332,6 +386,13 @@
     if ((needsRefresh || (hiddenAt && Date.now() - hiddenAt > 30000)) && navigator.onLine && !query("form.dirty") && !savingTask) location.reload();
   });
   window.addEventListener("pageshow", event => { if (event.persisted && !query("form.dirty") && navigator.onLine) location.reload(); });
+  // Recheck the server when a waiting step becomes ready, including in the Home Screen app.
+  setInterval(() => {
+    if (document.hidden || savingTask || !navigator.onLine || query("form.dirty") || document.activeElement?.closest("form")) return;
+    if (all("[data-ready-at]").some(el => Date.parse(el.dataset.readyAt) <= Date.now())) {
+      refreshScheduledRegions().catch(() => { needsRefresh = true; });
+    }
+  }, 30000);
 
   const pushCard = query("#push-card");
   if (pushCard) setupPush(pushCard);

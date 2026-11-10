@@ -1,7 +1,7 @@
 """'Nag me about this': when each reminder is due to fire, and sending the ones that are."""
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 
-from . import periods, push
+from . import periods, push, scheduling
 from .db import get_db
 
 UNIT_MINUTES = {"minutes": 1, "hours": 60, "days": 1440}
@@ -134,12 +134,17 @@ def run_due(now=None):
     """
     now = now or periods.now()
     d = now.date()
+    scheduling.ensure_selected(d)
     db = get_db()
     tasks = {t["id"]: t for t in db.execute("SELECT * FROM tasks WHERE active = 1")}
-    sent = 0
+    now_utc = now.replace(tzinfo=periods.tz()).astimezone(timezone.utc)
+    sent = scheduling.send_ready_notifications(now_utc)
     for rem in db.execute("SELECT * FROM reminders").fetchall():
         task = tasks.get(rem["task_id"])
         if task is None:
+            continue
+        if task["frequency"] == "selected":
+            sent += _selected_reminders(rem, task, now_utc)
             continue
         fire = fire_at(rem, task, now)
         if fire is None or fire > now or now - fire > GRACE:
@@ -161,5 +166,38 @@ def run_due(now=None):
             sent += 1
         elif results["error"]:    # nothing got through; let the next run try again
             db.execute("DELETE FROM reminder_log WHERE reminder_id = ? AND occurrence = ?", (rem["id"], occ))
+            db.commit()
+    return sent
+
+
+def _selected_reminders(rem, task, now_utc):
+    db = get_db()
+    sent = 0
+    for occurrence in db.execute("SELECT * FROM task_occurrences WHERE task_id=? AND source='selected' AND state='open'",
+                                 (task["id"],)).fetchall():
+        if not occurrence["due_at"] or scheduling.completion(occurrence):
+            continue
+        due = scheduling.local(occurrence["due_at"])
+        if rem["unit"] == "days":
+            fire = datetime.combine(due.date() - timedelta(days=rem["amount"]), time.fromisoformat(rem["at_time"]), periods.tz()).astimezone(timezone.utc)
+        else:
+            fire = due.astimezone(timezone.utc) - timedelta(minutes=rem["amount"] * UNIT_MINUTES[rem["unit"]])
+        created = datetime.fromisoformat(rem["created_at"]).replace(tzinfo=periods.tz()).astimezone(timezone.utc)
+        if fire > now_utc or now_utc - fire > GRACE or fire < created:
+            continue
+        subs = push.subscriptions_for(rem["user_id"])
+        if not subs:
+            continue
+        claimed = db.execute("INSERT OR IGNORE INTO reminder_log VALUES (?,?,?)",
+                             (rem["id"], occurrence["occurrence_key"], scheduling.stamp(now_utc))).rowcount
+        db.commit()
+        if not claimed:
+            continue
+        result = push.deliver(subs, {"title": task["name"], "body": "A little reminder for " + due.strftime("%A, %B ") + str(due.day) + ".",
+                                    "url": f"/occurrences/{occurrence['id']}", "tag": f"occurrence-{occurrence['id']}"})
+        if result["ok"]:
+            sent += 1
+        elif result["error"]:
+            db.execute("DELETE FROM reminder_log WHERE reminder_id=? AND occurrence=?", (rem["id"], occurrence["occurrence_key"]))
             db.commit()
     return sent

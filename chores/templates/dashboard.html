@@ -10,13 +10,13 @@
   </section>
   {% if not own %}<p class="viewing-note">You're viewing {{ who.display_name }}'s list. <a href="{{ url_for('main.home') }}">Back to my tasks</a></p>{% endif %}
   <nav class="period-tabs" aria-label="Task period">
-    {% for key in ('today','week','month') %}<a href="{{ request.path }}?view={{ key }}" class="{{ 'on' if selected == key }}" {{ 'aria-current=page' if selected == key }}>{{ task_views[key].label }}<span class="tab-count" data-view-count="{{ key }}">{{ task_views[key].open|length }}</span></a>{% endfor %}
+    {% for key in ('today','week','month') %}<a href="{{ request.path }}?view={{ key }}" class="{{ 'on' if selected == key }}" {{ 'aria-current=page' if selected == key }}>{{ task_views[key].label }}<span class="tab-count" data-view-count="{{ key }}">{{ task_views[key].remaining }}</span></a>{% endfor %}
   </nav>
   <div class="task-workspace">
     <div id="tasks-region">{% include '_task_list.html' %}</div>
     <aside class="task-sidebar">
       <div class="look-ahead"><p class="eyebrow">A little planning</p><h2>Room for the rest.</h2><p class="muted small">Your other lists are here whenever you're ready.</p>
-        {% for key in ('week','month','once','other') %}<a href="{{ request.path }}?view={{ key }}" class="look-ahead-link {{ 'on' if selected == key }}"><span>{{ task_views[key].label }}</span><span><b data-view-count="{{ key }}">{{ task_views[key].open|length }}</b> open {{ icon('chevron') }}</span></a>{% endfor %}
+        {% for key in ('week','month','once','other') %}<a href="{{ request.path }}?view={{ key }}" class="look-ahead-link {{ 'on' if selected == key }}"><span>{{ task_views[key].label }}</span><span><b data-view-count="{{ key }}">{{ task_views[key].remaining }}</b> open {{ icon('chevron') }}</span></a>{% endfor %}
       </div>
       {% if own %}<a class="together-note" href="{{ url_for('main.compare') }}">{{ icon('heart') }}<span><strong>We're in this together.</strong><span>See shared work &amp; ways to help</span></span>{{ icon('chevron') }}</a>{% endif %}
     </aside>

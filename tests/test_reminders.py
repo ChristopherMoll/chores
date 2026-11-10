@@ -162,7 +162,7 @@ def test_v1_database_migrates_without_losing_history(tmp_path):
     """)
     db.init_schema(conn)
     db.init_schema(conn)     # running it again must be harmless
-    assert conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0] == "2"
+    assert conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0] == "3"
     assert conn.execute("SELECT points FROM completions WHERE task_id = 7").fetchone()[0] == 5
     assert conn.execute("SELECT hours_month FROM tasks WHERE id = 7").fetchone()[0] == 4
     assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1

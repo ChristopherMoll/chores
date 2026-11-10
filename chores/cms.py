@@ -3,12 +3,14 @@
 Open to every logged-in user. Technical settings live in admin.py instead."""
 import csv
 import io
+import json
+import math
 from datetime import date, datetime
 
 from flask import (Blueprint, Response, abort, flash, g, redirect, render_template, request,
                    url_for)
 
-from . import logic, periods
+from . import logic, periods, scheduling
 from .auth import login_required, safe_next
 from .db import get_db
 
@@ -16,7 +18,7 @@ bp = Blueprint("manage", __name__, url_prefix="/manage")
 
 GROUPS = ["Home", "Out", "Caregiving", "Magic", "Wild"]
 DUE_FIELDS = ("due_date", "due_weekday", "due_monthday", "due_time")
-FIELDS = ("code", "grp", "name", "description", "frequency", "owner", "hours_month", "notes", "active") + DUE_FIELDS
+FIELDS = ("code", "grp", "name", "description", "frequency", "owner", "hours_month", "notes", "active", "selected_days") + DUE_FIELDS
 
 
 def _parse_hours(raw):
@@ -27,7 +29,7 @@ def _parse_hours(raw):
         v = float(raw)
     except ValueError:
         raise ValueError(f"'{raw}' isn't a number of hours.")
-    if v < 0 or v > 744:
+    if not math.isfinite(v) or v < 0 or v > 744:
         raise ValueError("Hours per month must be between 0 and 744.")
     return round(v, 2)
 
@@ -50,7 +52,7 @@ def parse_due(freq, due_date="", due_weekday="", due_monthday="", due_time=""):
             out["due_monthday"] = int(due_monthday)
             if not 1 <= out["due_monthday"] <= 31:
                 raise ValueError
-        elif freq == "daily" and due_time:
+        elif freq in ("daily", "selected") and due_time:
             out["due_time"] = datetime.strptime(due_time, "%H:%M").strftime("%H:%M")
     except ValueError:
         raise ValueError(f"That due setting doesn't look right for a {freq} task.")
@@ -90,6 +92,11 @@ def tasks():
                            owners=logic.owner_choices(), freqs=periods.FREQUENCIES,
                            summary={r["owner"]: r for r in summary}, members=logic.members(),
                            loads={m["username"]: logic.load_hours(m["username"]) for m in logic.members()},
+                           workload_tasks=[{"id": t["id"], "owner": t["owner"], "frequency": t["frequency"],
+                                            "hours": t["hours_month"] or 0, "active": bool(t["active"])}
+                                           for t in get_db().execute("SELECT * FROM tasks")],
+                           sequence_links={str(t["root_task_id"]): [step["task_id"] for step in scheduling.recipe(t["root_task_id"])]
+                                           for t in get_db().execute("SELECT root_task_id FROM task_sequences")},
                            missing_estimates=get_db().execute(
                                "SELECT COUNT(*) FROM tasks WHERE active=1 AND frequency!='once' AND hours_month IS NULL"
                            ).fetchone()[0])
@@ -114,15 +121,24 @@ def tasks_bulk():
         if not _valid_owner(owner) or freq not in periods.FREQUENCIES:
             errors.append(f"Row {tid}: bad owner or frequency.")
             continue
+        previous = db.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
+        if freq == "selected" and (not previous or not previous["selected_days"]):
+            errors.append(f"Row {tid}: choose Selected days in the full task editor first.")
+            continue
+        if freq == "sequence" and scheduling.recipe(tid):
+            errors.append(f"Row {tid}: remove its follow-ups before making it a sequence step.")
+            continue
         cur = db.execute(
             "UPDATE tasks SET owner = ?, frequency = ?, hours_month = ?, active = ?, updated_at = datetime('now'),"
             " due_date = CASE WHEN ? = 'once' THEN due_date END,"          # due settings for any other
             " due_weekday = CASE WHEN ? = 'weekly' THEN due_weekday END,"  # frequency no longer apply
             " due_monthday = CASE WHEN ? = 'monthly' THEN due_monthday END,"
-            " due_time = CASE WHEN ? = 'daily' THEN due_time END"
+            " due_time = CASE WHEN ? IN ('daily','selected') THEN due_time END"
             " WHERE id = ? AND (owner IS NOT ? OR frequency IS NOT ? OR hours_month IS NOT ? OR active IS NOT ?)",
             (owner, freq, hours, active, freq, freq, freq, freq, tid, owner, freq, hours, active))
         changed += cur.rowcount
+        if previous and previous["frequency"] != freq:
+            scheduling.sync_selected(tid)
     db.commit()
     for e in errors:
         flash(e, "error")
@@ -134,6 +150,8 @@ def _task_form(task=None):
     form = request.form
     data = {k: form.get(k, "").strip() for k in ("code", "grp", "name", "description", "frequency", "owner", "notes")}
     data["active"] = 1 if form.get("active") else 0
+    data["selected_days"] = ""
+    data["hours_month"] = None
     errs = []
     try:
         data["hours_month"] = _parse_hours(form.get("hours_month"))
@@ -148,6 +166,8 @@ def _task_form(task=None):
         errs.append("Pick a frequency.")
     else:
         try:
+            if data["frequency"] == "selected":
+                data["selected_days"] = scheduling.parse_days(form.getlist("selected_days"))
             data.update(parse_due(data["frequency"], *(form.get(k, "").strip() for k in DUE_FIELDS)))
         except ValueError as e:
             errs.append(str(e))
@@ -157,6 +177,30 @@ def _task_form(task=None):
     if dupe and (task is None or dupe["id"] != task["id"]):
         errs.append(f"Code {data['code']} is already used.")
     return data, errs
+
+
+def _sequence_context(task_id=None):
+    db = get_db()
+    steps = []
+    if request.method == "POST" and "sequence_editor" in request.form:
+        for tid, name, delay, hours in zip(*(request.form.getlist(k) for k in ("step_task", "step_name", "step_delay", "step_hours"))):
+            steps.append({"task_id": int(tid) if tid.isdigit() else None, "name": name, "delay": delay, "hours": hours})
+    elif task_id:
+        steps = [dict(step, name="", hours="") for step in scheduling.recipe(task_id)]
+    return {"sequence_steps": steps,
+            "sequence_choices": db.execute("SELECT id,name FROM tasks WHERE frequency='sequence' AND active=1 ORDER BY name").fetchall(),
+            "sequence_subscribed": bool(task_id and db.execute("SELECT 1 FROM sequence_subscriptions WHERE root_task_id=? AND user_id=?",
+                                                                (task_id, g.user["id"])).fetchone())}
+
+
+def _save_sequence(task_id, steps):
+    task = get_db().execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
+    scheduling.save_recipe(task, steps)
+    if steps is not None and g.user["role"] == "member":
+        if request.form.get("sequence_notify") and steps:
+            get_db().execute("INSERT OR IGNORE INTO sequence_subscriptions VALUES (?,?)", (task_id, g.user["id"]))
+        else:
+            get_db().execute("DELETE FROM sequence_subscriptions WHERE root_task_id=? AND user_id=?", (task_id, g.user["id"]))
 
 
 def _next_code(grp):
@@ -171,10 +215,17 @@ def _next_code(grp):
 def task_new():
     if request.method == "POST":
         data, errs = _task_form()
+        try:
+            steps = scheduling.parse_recipe(request.form)
+            if steps and data["frequency"] == "sequence":
+                raise ValueError("A follow-up cannot also start a sequence.")
+        except ValueError as e:
+            errs.append(str(e))
         if not errs:
             db = get_db()
-            db.execute(f"INSERT INTO tasks({','.join(FIELDS)}) VALUES ({','.join('?' * len(FIELDS))})",
-                       [data[k] for k in FIELDS])
+            cursor = db.execute(f"INSERT INTO tasks({','.join(FIELDS)}) VALUES ({','.join('?' * len(FIELDS))})",
+                                [data[k] for k in FIELDS])
+            _save_sequence(cursor.lastrowid, steps)
             db.commit()
             flash(f"Added {data['name']}.", "ok")
             return redirect(safe_next(request.form.get("back", "")) if request.form.get("back")
@@ -186,10 +237,11 @@ def task_new():
         grp = request.args.get("grp", "Home")
         task = {"code": _next_code(grp if grp in GROUPS else "Home"), "grp": grp, "name": "", "description": "",
                 "frequency": "weekly", "owner": logic.VOLUNTEER, "hours_month": None, "notes": "", "active": 1,
-                **dict.fromkeys(DUE_FIELDS)}
+                "selected_days": "", **dict.fromkeys(DUE_FIELDS)}
     return render_template("manage/task_form.html", task=task, new=True, groups=GROUPS, weekdays=periods.WEEKDAYS,
                            owners=logic.owner_choices(), freqs=periods.FREQUENCIES,
-                           back_url=safe_next(request.form.get("back") or request.args.get("back") or url_for("manage.tasks")))
+                           back_url=safe_next(request.form.get("back") or request.args.get("back") or url_for("manage.tasks")),
+                           **_sequence_context())
 
 
 @bp.route("/tasks/<int:task_id>", methods=["GET", "POST"])
@@ -201,9 +253,20 @@ def task_edit(task_id):
         abort(404)
     if request.method == "POST":
         data, errs = _task_form(task)
+        try:
+            steps = scheduling.parse_recipe(request.form, task_id)
+            if steps and data["frequency"] == "sequence":
+                raise ValueError("A follow-up cannot also start a sequence.")
+            if scheduling.recipe(task_id) and data["frequency"] == "sequence":
+                raise ValueError("Remove the follow-ups before making this task a sequence step.")
+        except ValueError as e:
+            errs.append(str(e))
         if not errs:
             db.execute(f"UPDATE tasks SET {', '.join(k + ' = ?' for k in FIELDS)}, updated_at = datetime('now')"
                        " WHERE id = ?", [data[k] for k in FIELDS] + [task_id])
+            if any(task[k] != data[k] for k in ("frequency", "selected_days", "due_time", "active")):
+                scheduling.sync_selected(task_id)
+            _save_sequence(task_id, steps)
             db.commit()
             flash(f"Saved {data['name']}.", "ok")
             return redirect(safe_next(request.form.get("back", "")) if request.form.get("back")
@@ -214,7 +277,8 @@ def task_edit(task_id):
     n = db.execute("SELECT COUNT(*) FROM completions WHERE task_id = ?", (task_id,)).fetchone()[0]
     return render_template("manage/task_form.html", task=task, new=False, groups=GROUPS, completions=n,
                            weekdays=periods.WEEKDAYS, owners=logic.owner_choices(), freqs=periods.FREQUENCIES,
-                           back_url=safe_next(request.form.get("back") or request.args.get("back") or url_for("manage.tasks")))
+                           back_url=safe_next(request.form.get("back") or request.args.get("back") or url_for("manage.tasks")),
+                           **_sequence_context(task_id))
 
 
 @bp.post("/tasks/<int:task_id>/delete")
@@ -223,6 +287,13 @@ def task_delete(task_id):
     db = get_db()
     t = db.execute("SELECT name FROM tasks WHERE id = ?", (task_id,)).fetchone()
     if t:
+        referenced = any(step["task_id"] == task_id for row in db.execute("SELECT root_task_id FROM task_sequences")
+                         for step in scheduling.recipe(row["root_task_id"]))
+        active_run = db.execute("SELECT 1 FROM task_occurrences o JOIN sequence_runs r ON r.id=o.run_id"
+                                " WHERE o.task_id=? AND r.state='active'", (task_id,)).fetchone()
+        if referenced or active_run:
+            flash("This task is part of a sequence. Archive it to keep existing runs, or remove its sequence links and finish or cancel active runs before deleting it.", "error")
+            return redirect(url_for("manage.task_edit", task_id=task_id))
         db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
         db.commit()
         flash(f"Deleted {t['name']} and its history.", "ok")
@@ -237,13 +308,16 @@ def export_csv():
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["Code", "Group", "Task", "What it covers", "Frequency", "Owner", "Hours / Month", "Notes", "Active",
-                "Due Date", "Due Weekday", "Due Day", "Due Time"])
+                "Due Date", "Due Weekday", "Due Day", "Due Time", "Selected Days", "Sequence Steps"])
     for t in get_db().execute("SELECT * FROM tasks ORDER BY grp, code"):
         w.writerow([t["code"], t["grp"], t["name"], t["description"], t["frequency"],
                     logic.owner_label(t["owner"]), t["hours_month"] if t["hours_month"] is not None else "",
                     t["notes"], "yes" if t["active"] else "no",
                     t["due_date"] or "", periods.WEEKDAYS[t["due_weekday"]] if t["due_weekday"] is not None else "",
-                    t["due_monthday"] or "", t["due_time"] or ""])
+                    t["due_monthday"] or "", t["due_time"] or "",
+                    ",".join(periods.WEEKDAYS[int(day)][:3] for day in t["selected_days"].split(",") if day),
+                    json.dumps([{"code": get_db().execute("SELECT code FROM tasks WHERE id=?", (step["task_id"],)).fetchone()["code"],
+                                 "delay_minutes": step["delay"]} for step in scheduling.recipe(t["id"])]) if scheduling.recipe(t["id"]) else ""])
     return Response(buf.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=molechores-tasks.csv"})
 
@@ -277,6 +351,7 @@ def apply_import(rows):
     labels = {label.lower(): value for value, label in logic.owner_choices()}
     labels.update({"needs volunteer": logic.VOLUNTEER, "volunteer": logic.VOLUNTEER, "shared": logic.SHARED})
     db, updated, problems = get_db(), 0, []
+    sequence_rows = []
     for i, raw in enumerate(rows, start=2):
         row = {str(k).strip().lower(): ("" if v is None else str(v).strip()) for k, v in raw.items() if k}
         code = row.get("code", "").upper()
@@ -303,6 +378,17 @@ def apply_import(rows):
             sets["notes"] = row["notes"]
         if row.get("frequency", "").lower() in periods.FREQUENCIES:
             sets["frequency"] = row["frequency"].lower()
+        if row.get("selected days"):
+            try:
+                sets["selected_days"] = scheduling.parse_days(row["selected days"])
+            except ValueError as e:
+                problems.append(f"Row {i} ({code}): {e}")
+        if sets.get("frequency", task["frequency"]) == "selected" and not sets.get("selected_days", task["selected_days"]):
+            problems.append(f"Row {i} ({code}): choose at least one Selected Day.")
+            sets.pop("frequency", None)
+        if sets.get("frequency") == "sequence" and scheduling.recipe(task["id"]):
+            problems.append(f"Row {i} ({code}): remove its sequence before making it a follow-up.")
+            sets.pop("frequency", None)
         if row.get("active", "").lower() in ("yes", "no", "1", "0", "true", "false"):
             sets["active"] = 1 if row["active"].lower() in ("yes", "1", "true") else 0
         try:
@@ -312,7 +398,30 @@ def apply_import(rows):
         if sets:
             db.execute(f"UPDATE tasks SET {', '.join(k + ' = ?' for k in sets)}, updated_at = datetime('now')"
                        " WHERE id = ?", list(sets.values()) + [task["id"]])
+            if any(k in sets and sets[k] != task[k] for k in ("frequency", "selected_days", "due_time", "active")):
+                scheduling.sync_selected(task["id"])
             updated += 1
+        if row.get("sequence steps"):
+            sequence_rows.append((i, task["id"], row["sequence steps"]))
+    for row_number, task_id, raw_steps in sequence_rows:
+        try:
+            from werkzeug.datastructures import MultiDict
+            values = json.loads(raw_steps)
+            if not isinstance(values, list):
+                raise ValueError("Sequence Steps must be a JSON list.")
+            form = MultiDict([("sequence_editor", "1")])
+            for step in values:
+                if not isinstance(step, dict):
+                    raise ValueError("Each sequence step needs a task code and delay_minutes.")
+                task = db.execute("SELECT id FROM tasks WHERE code=?", (str(step.get("code", "")),)).fetchone()
+                if not task:
+                    raise ValueError("Sequence step code was not found. Create the task before linking it.")
+                for k, v in (("step_task", str(task["id"])), ("step_name", ""), ("step_delay", str(step.get("delay_minutes", 60))), ("step_hours", "")):
+                    form.add(k, v)
+            steps = scheduling.parse_recipe(form, task_id)
+            scheduling.save_recipe(db.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone(), steps)
+        except (ValueError, TypeError) as e:
+            problems.append(f"Row {row_number}: {e}")
     db.commit()
     return updated, problems
 

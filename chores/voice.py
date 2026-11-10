@@ -11,7 +11,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 
-from . import logic, periods
+from . import logic, periods, scheduling
 from .db import get_db
 
 MAX_PHRASE = 300
@@ -95,9 +95,12 @@ def normalize(text):
 
 
 def _stem(word):
-    for suffix in ("ing", "es", "s"):
+    for suffix in ("ing", "ed", "es", "s"):
         if word.endswith(suffix) and len(word) - len(suffix) >= 3:
-            return word[: -len(suffix)]
+            word = word[: -len(suffix)]
+            if suffix in ("ing", "ed") and len(word) > 3 and word[-1] == word[-2]:
+                word = word[:-1]   # mopped -> mop, scrubbing -> scrub
+            return word
     return word
 
 
@@ -105,20 +108,56 @@ def _words(text):
     return [_stem(w) for w in normalize(text).split() if w not in FILLER]
 
 
-def _similar(a, b):
-    return a == b or (min(len(a), len(b)) >= 4 and SequenceMatcher(None, a, b).ratio() >= 0.8)
+def _closeness(a, b):
+    """1 for the same word, partial credit for a near miss such as dictation hearing "watch" for "wash"."""
+    if a == b:
+        return 1.0
+    if min(len(a), len(b)) < 3:
+        return 0.0
+    ratio = SequenceMatcher(None, a, b).ratio()
+    if ratio >= 0.8 and min(len(a), len(b)) >= 4:
+        return 1.0
+    return ratio if ratio >= 0.6 else 0.0
+
+
+def _name_word_credit(heard, wanted):
+    return [max(_closeness(w, h) for h in heard) for w in wanted]
+
+
+def _fully_heard(spoken, name):
+    """How many words the task's name has, if every one of them was clearly heard; otherwise 0."""
+    heard, wanted = _words(spoken), _words(name)
+    if heard and wanted and all(c == 1.0 for c in _name_word_credit(heard, wanted)):
+        return len(wanted)
+    return 0
+
+
+def _most_specific(phrase, tasks):
+    """'wash laundry' means Wash Laundry, not Laundry: the longest name heard in full wins outright.
+
+    Only when its name is longer than every other candidate's, so a mishearing like "watch laundry"
+    still asks rather than settling for the shorter name.
+    """
+    lengths = sorted(((len(_words(t["name"])), _fully_heard(phrase, t["name"]), t) for t in tasks),
+                     key=lambda x: x[0], reverse=True)
+    (top_len, top_full, top), runner_up = lengths[0], lengths[1]
+    return top if top_full and top_len > runner_up[0] else None
 
 
 def score(spoken, name):
-    """0..1: mostly how much of the task's name was heard, a little for how few words were left over."""
+    """0..1: mostly how much of the task's name was heard, a little for how few words were left over.
+
+    At least one word must be a clear match; near misses only add to that, so they can
+    separate two similar tasks but never pick a task on their own.
+    """
     heard, wanted = _words(spoken), _words(name)
     if not heard or not wanted:
         return 0.0
-    found = sum(1 for w in wanted if any(_similar(w, h) for h in heard))
-    used = sum(1 for h in heard if any(_similar(h, w) for w in wanted))
-    if not found:
+    best_wanted = _name_word_credit(heard, wanted)
+    if not any(c == 1.0 for c in best_wanted):
         return 0.0
-    return 0.7 * found / len(wanted) + 0.3 * used / len(heard)
+    best_heard = [max(_closeness(h, w) for w in wanted) for h in heard]
+    return 0.7 * sum(best_wanted) / len(wanted) + 0.3 * sum(best_heard) / len(heard)
 
 
 def _spoken_list(names):
@@ -155,10 +194,14 @@ def _complete(user, phrase):
     pool = mine or ranked   # your own tasks win; otherwise anyone's
     if pool:
         close = [t for s, t in pool if s >= pool[0][0] - AMBIGUOUS_GAP]
+        if len(close) > 1 and (specific := _most_specific(phrase, close)):
+            close = [specific]
         if len(close) > 1:
-            return _reply(False, "ambiguous", f"Did you mean {_spoken_list(t['name'] for t in close[:3])}? "
-                          "Say the full name and I'll cross it off.", options=[t["name"] for t in close[:3]])
-        task = pool[0][1]
+            options = [t["name"] for t in close[:3]]
+            _record_miss(user["id"], f"{phrase} (asked: {_spoken_list(options)})")
+            return _reply(False, "ambiguous", f"I heard “{phrase}”. Did you mean {_spoken_list(options)}? "
+                          "Say the full name and I'll cross it off.", options=options, heard=phrase)
+        task = close[0]
         if task["owner"] == logic.VOLUNTEER:
             return _reply(False, "volunteer", f"{task['name']} is up for grabs. Claim it in the app first.")
         return _cross_off(user, task)
@@ -167,26 +210,49 @@ def _complete(user, phrase):
 
 
 def _completion(task):
+    occurrence = scheduling.resolve(task)
+    if occurrence:
+        return scheduling.completion(occurrence)
     return get_db().execute(
         "SELECT c.*, u.display_name AS doer FROM completions c JOIN users u ON u.id = c.user_id"
         " WHERE c.task_id = ? AND c.period_key = ?", (task["id"], periods.period_key(task["frequency"]))).fetchone()
 
 
 def _cross_off(user, task):
-    before = _completion(task)
+    try:
+        occurrence = scheduling.resolve(task)
+        if task["frequency"] not in ("selected", "sequence"):
+            choices = scheduling.candidates(task["id"])
+            if len(choices) > 1 or (choices and choices[0]["occurrence_key"] != periods.period_key(task["frequency"]) and not _completion(task)):
+                raise ValueError("More than one load could match. Choose the run in the app.")
+            if choices:
+                occurrence = scheduling.get_occurrence(choices[0]["id"])
+        before = scheduling.completion(occurrence) if occurrence else _completion(task)
+    except ValueError as e:
+        return _reply(False, "choose_occurrence", str(e))
     if before:
         who = "You already" if before["user_id"] == user["id"] else f"{before['doer']} already"
         return _reply(True, "already_done", f"{who} crossed off {task['name']}.", task=task["name"])
-    owner = _other_owner(user, task)
+    effective_task = scheduling.occurrence_task(occurrence) if occurrence else task
+    owner = _other_owner(user, effective_task)
     # Explicit state: a retried request can't undo it.
-    logic.toggle(user, task, desired_done=True, steal=owner is not None)
-    after = _completion(task)
+    try:
+        logic.toggle(user, task, desired_done=True, steal=owner is not None, occurrence_id=occurrence["id"] if occurrence else None)
+    except (ValueError, PermissionError) as e:
+        return _reply(False, "not_ready", str(e))
+    after = scheduling.completion(occurrence) if occurrence else _completion(task)
     if after and after["user_id"] != user["id"]:   # someone else got there at the same moment
         return _reply(True, "already_done", f"{after['doer']} already crossed off {task['name']}.", task=task["name"])
     points = after["points"] if after else 0
     left = len(logic.task_views(logic.dashboard(user["username"]))["today"]["open"])
     tail = "That's everything for today." if not left else f"{left} left today."
     head = f"Crossed off {task['name']}."
+    active = scheduling.get_occurrence(occurrence["id"]) if occurrence else scheduling.resolve(task)
+    if active and active["run_id"]:
+        following = get_db().execute("SELECT * FROM task_occurrences WHERE run_id=? AND position=?", (active["run_id"], active["position"] + 1)).fetchone()
+        if following and following["ready_at"]:
+            at = scheduling.local(following["ready_at"])
+            tail += " " + scheduling.occurrence_task(following)["name"] + " will be ready " + at.strftime('%A ') + periods.format_time(at.time()) + "."
     if owner:
         sent = _notify(owner, task, "Task stolen!", f"{user['display_name']} crossed off {task['name']} for you.")
         head = (f"Crossed off {task['name']} for {owner['display_name']}, and I've let {owner['display_name']} know."
@@ -218,12 +284,16 @@ def _notify(owner, task, title, body):
 
 def _undo(user):
     row = get_db().execute(
-        "SELECT c.done_at, c.period_key, t.* FROM completions c JOIN tasks t ON t.id = c.task_id"
+        "SELECT c.done_at, c.period_key, o.id AS occurrence_id, t.* FROM completions c JOIN tasks t ON t.id = c.task_id"
+        " LEFT JOIN task_occurrences o ON o.task_id=c.task_id AND o.occurrence_key=c.period_key"
         " WHERE c.user_id = ? ORDER BY c.done_at DESC, c.id DESC LIMIT 1", (user["id"],)).fetchone()
-    recent = row and datetime.now(timezone.utc) - datetime.fromisoformat(row["done_at"]) <= UNDO_WINDOW
-    if not recent or row["period_key"] != periods.period_key(row["frequency"]):
+    recent = row and (scheduling.now_utc() if row["occurrence_id"] else datetime.now(timezone.utc)) - datetime.fromisoformat(row["done_at"]) <= UNDO_WINDOW
+    if not recent or (not row["occurrence_id"] and row["period_key"] != periods.period_key(row["frequency"])):
         return _reply(False, "nothing_to_undo", "There's nothing from the last hour to undo.")
-    logic.toggle(user, row, desired_done=False)
+    try:
+        logic.toggle(user, row, desired_done=False, occurrence_id=row["occurrence_id"])
+    except (ValueError, PermissionError) as e:
+        return _reply(False, "cannot_undo", str(e))
     owner = _other_owner(user, row)
     if owner:   # they were told it was stolen, so tell them it's theirs again
         sent = _notify(owner, row, "Never mind", f"{user['display_name']} put {row['name']} back on your list.")
@@ -245,6 +315,11 @@ def _left(user):
     d = periods.today()
     open_ = logic.task_views(logic.dashboard(user["username"], d), d)["today"]["open"]
     if not open_:
+        upcoming = logic.task_views(logic.dashboard(user["username"], d), d)["today"]["upcoming"]
+        timed = [row for row in upcoming if row.get("ready_at")]
+        if timed:
+            first = min(timed, key=lambda row: row["ready_at"])
+            return _reply(True, "left", "Nothing ready right now. " + first["task"]["name"] + " will be ready " + first["ready_at"].strftime("%A ") + periods.format_time(first["ready_at"].time()) + ".", count=0, daily=[], due_today=[], overdue=[])
         return _reply(True, "left", "Nothing left today. Nice work.", count=0, daily=[], due_today=[], overdue=[])
     groups = {"daily": [], "due_today": [], "overdue": []}
     for r in open_:
@@ -252,7 +327,7 @@ def _left(user):
         if task["frequency"] == "daily":
             groups["daily"].append(task["name"])
         else:
-            due = periods.due_date(task, d)
+            due = r["due"]["date"] if r.get("due") else r.get("scheduled_date") or periods.due_date(task, d)
             groups["overdue" if due and due < d else "due_today"].append(task["name"])
     parts, budget = [], MAX_SPOKEN_TASKS
     for key, label in (("daily", "Daily"), ("due_today", "Due today"), ("overdue", "Overdue")):
