@@ -7,6 +7,7 @@
   const all = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
   let toastTimer;
   let savingTask = false;
+  let taskRevision = 0;
   let keyboardInteraction = false;
   document.addEventListener("keydown", () => { keyboardInteraction = true; });
   document.addEventListener("pointerdown", () => { keyboardInteraction = false; });
@@ -40,6 +41,7 @@
     if (appearance === "light" || appearance === "dark") root.dataset.theme = appearance;
     else delete root.dataset.theme;
     root.dataset.quiet = setting("quiet", "false");
+    window.MoleMotion?.preferencesChanged();
     all('meta[name="theme-color"]').forEach((meta, index) => {
       const dark = appearance === "system" ? index === 1 : appearance === "dark";
       meta.setAttribute("content", dark ? "#191f1c" : "#f4f1ea");
@@ -84,33 +86,42 @@
     }
   }
 
-  async function refreshScheduledRegions() {
+  async function refreshScheduledRegions(background = false) {
+    const revision = taskRevision;
     const response = await fetch(location.href, {cache: "no-store", credentials: "same-origin"});
     if (!response.ok || response.redirected) { needsRefresh = true; return; }
     const page = new DOMParser().parseFromString(await response.text(), "text/html");
+    if (background && (savingTask || revision !== taskRevision || query("form.dirty") || document.activeElement?.closest("form"))) {
+      needsRefresh = true;
+      return;
+    }
+    const motion = window.MoleMotion?.capture();
     const expanded = all(".task-body[open]").map(el => el.closest(".task").dataset.rowKey);
     const closedRuns = all("[data-run-group]:not([open])").map(el => el.dataset.runGroup);
-    const completedOpen = !!query(".completed-group[open]");
+    const openDisclosures = all(".completed-group[open]").map(el => el.dataset.disclosure);
     ["tasks-region", "volunteer-region", "sequence-run-region", "sequence-heading", "sequence-actions", "occurrence-region"].forEach(id => {
       const current = document.getElementById(id), next = page.getElementById(id);
       if (current && next) { current.replaceWith(next); paint(next); setupForms(next); }
     });
     expanded.forEach(id => query('[data-row-key="' + id + '"] .task-body')?.setAttribute("open", ""));
     closedRuns.forEach(id => all('[data-run-group="' + id + '"]').forEach(el => el.removeAttribute("open")));
-    if (completedOpen) query(".completed-group")?.setAttribute("open", "");
+    openDisclosures.forEach(key => query('[data-disclosure="' + key + '"]')?.setAttribute("open", ""));
     all("[data-view-count]", page).forEach(next => all('[data-view-count="' + next.dataset.viewCount + '"]').forEach(el => { el.textContent = next.textContent; }));
+    window.MoleMotion?.restore(motion);
   }
 
   async function setTask(url, desired, taskId, period, occurrenceId = null, early = false) {
     if (savingTask) return;
     if (!navigator.onLine) { toast("You're offline. Reconnect, then try again.", "error"); return; }
     savingTask = true;
+    taskRevision++;
     const row = document.getElementById(occurrenceId ? 'occurrence-' + occurrenceId : 'task-' + taskId);
     const nextIndex = row ? all(".tasks > .task:not(.done)").indexOf(row) : 0;
     const expandedIds = all(".task-body[open]").map(el => el.closest(".task").dataset.rowKey);
-    const completedOpen = !!query(".completed-group[open]");
+    const openDisclosures = all(".completed-group[open]").map(el => el.dataset.disclosure);
+    const closedRuns = all("[data-run-group]:not([open])").map(el => el.dataset.runGroup);
     row?.classList.add("saving");
-    all(".tick").forEach(button => { button.dataset.wasDisabled = String(button.disabled); button.disabled = true; });
+    all(".tick-form button").forEach(button => { button.dataset.wasDisabled = String(button.disabled); button.disabled = true; });
     const data = new FormData();
     data.set("done", desired ? "1" : "0");
     if (period) data.set("period", period);
@@ -130,22 +141,25 @@
         error.noRetry = response.status === 403;
         throw error;
       }
+      await window.MoleMotion?.confirm(row, result.done);
+      const motion = window.MoleMotion?.capture(row);
       const taskRegion = query("#tasks-region");
       if (taskRegion) {
         taskRegion.innerHTML = result.tasks_html;
         paint(taskRegion);
-        if (completedOpen) query(".completed-group", taskRegion)?.setAttribute("open", "");
-        expandedIds.forEach(id => query('[data-row-key="' + id + '"] .task-body', taskRegion)?.setAttribute("open", ""));
       }
       const volunteerRegion = query("#volunteer-region");
       if (volunteerRegion) { volunteerRegion.innerHTML = result.volunteer_html; paint(volunteerRegion); }
       if (query("#sequence-run-region, #occurrence-region")) await refreshScheduledRegions();
       else { if (taskRegion) setupForms(taskRegion); if (volunteerRegion) setupForms(volunteerRegion); }
+      openDisclosures.forEach(key => query('[data-disclosure="' + key + '"]')?.setAttribute("open", ""));
+      closedRuns.forEach(id => all('[data-run-group="' + id + '"]').forEach(el => el.removeAttribute("open")));
+      expandedIds.forEach(id => query('[data-row-key="' + id + '"] .task-body')?.setAttribute("open", ""));
       Object.entries(result.counts).forEach(([key, count]) => all('[data-view-count="' + key + '"]').forEach(el => { el.textContent = count; }));
-      const mole = query("#hero-mole");
       const lede = query("#hero-lede");
       const allDone = result.today.total > 0 && result.today.done === result.today.total;
-      if (mole) mole.src = allDone ? mole.dataset.allDone : mole.dataset.working;
+      window.MoleMotion?.restore(motion);
+      window.MoleMotion?.react(result.done && result.can_undo, allDone);
       if (lede) lede.textContent = allDone ? "Today's list is taken care of." : result.today.total ? "A little at a time." : "A little breathing room today.";
       if (result.done) {
         const ownCompletion = result.can_undo;
@@ -156,9 +170,11 @@
         toast("Task restored to your list.");
       }
       if (keyboardInteraction) {
-        const buttons = all(".tasks > .task:not(.done) .tick:not(:disabled)");
+        const buttons = all(".tasks > .task:not(.done) .tick:not(:disabled)").filter(button => button.getClientRects().length);
         const next = buttons[Math.max(0, Math.min(nextIndex, buttons.length - 1))];
-        (next || query("#toast-action:not([hidden])") || query("#toast-close"))?.focus({ preventScroll: true });
+        const restored = !result.done && document.getElementById(result.occurrence_id ? 'occurrence-' + result.occurrence_id : 'task-' + taskId)?.querySelector(".tick:not(:disabled)");
+        const focus = restored || next || query("#toast-action:not([hidden])") || query("#toast-close");
+        if (window.MoleMotion) window.MoleMotion.focusControl(focus); else focus?.focus({preventScroll: true});
       }
       await refreshTogether();
     } catch (error) {
@@ -168,7 +184,7 @@
       clearTimeout(timeout);
       savingTask = false;
       row?.classList.remove("saving");
-      all(".tick[data-was-disabled]").forEach(button => { button.disabled = button.dataset.wasDisabled === "true"; delete button.dataset.wasDisabled; });
+      all(".tick-form button[data-was-disabled]").forEach(button => { button.disabled = button.dataset.wasDisabled === "true"; delete button.dataset.wasDisabled; });
     }
   }
   document.addEventListener("submit", event => {
@@ -390,7 +406,7 @@
   setInterval(() => {
     if (document.hidden || savingTask || !navigator.onLine || query("form.dirty") || document.activeElement?.closest("form")) return;
     if (all("[data-ready-at]").some(el => Date.parse(el.dataset.readyAt) <= Date.now())) {
-      refreshScheduledRegions().catch(() => { needsRefresh = true; });
+      refreshScheduledRegions(true).catch(() => { needsRefresh = true; });
     }
   }, 30000);
 

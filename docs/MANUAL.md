@@ -45,12 +45,16 @@ Log in and you land on **My tasks**. On an iPhone the four main destinations are
 - **Today** combines daily routines with weekly, monthly, and one-off tasks due today or overdue in their current period. Progress counts exactly the tasks in that list, once each.
 - **This week** shows weekly tasks and monthly or one-off deadlines through the end of the household's week. **This month** shows monthly tasks and one-off deadlines through month end. Daily routines stay in Today.
 - **One-off** includes tasks without a due date, so they remain easy to find. **As needed** holds your unscheduled tasks. The links below or beside the active list reach both.
-- **Tap the circle** to mark a task done. An Undo action stays in the feedback message until dismissed or replaced; completed tasks are also in a collapsible section for later undo. Only the actual doer can undo a shared task.
+- **Tap the circle** to mark a task done. An Undo action stays in the feedback message until dismissed or replaced. Expand **Completed → Review & undo** and choose **Undo completion** beneath any task you crossed off to fix several mistakes independently; task details can stay closed. The UI has no one-task or one-hour limit for displayed completions. Only the actual doer can undo a shared task. For sequences, undo later completed steps first.
 - **Tap a task's name** to see what it covers, what done looks like, reminder settings, and editing. Details such as codes and monthly effort estimates stay out of the main task row.
 - **Together** contains household contributions, assigned effort, activity, and volunteer opportunities. Volunteer completions still earn 50% bonus points. Friendly competition is available in a closed disclosure.
 - **Progress** contains your weekly contributions, daily history, current milestones, and recent activity. **More** contains management, account links, reminder settings, installation help, and device-local appearance and quiet-celebration preferences.
 
 The mole celebrates a completed Today list and otherwise stays encouraging. Saving feedback comes from the server. An interrupted request can be retried safely, and the app refreshes stale state after returning from the background without discarding unsaved edits. Offline completions are not queued.
+
+The vector mole occasionally blinks and breathes, nods when you complete a task, and celebrates when today's list is finished. Other poses animate their own small details. Motion pauses when the app is hidden and stops for illustrations outside the visible screen. **More → Quiet celebrations** disables animations while keeping all feedback and task actions. The device's **Reduce Motion** preference also disables motion, including JavaScript transitions. Scrolling away from a pressed control cancels its pressed appearance; tasks are only completed by an intentional activation, after the server confirms the save.
+
+The original mascot SVGs live in `chores/static/mascot`. To update their prepared inline versions, run `python tools/prepare_mascots.py` after reviewing the group map in that tool. It preserves the originals, removes export metadata and the background canvas, converts embedded fill styles to SVG presentation attributes, and labels the parts used by animation. The application reads the prepared versions directly; normal installation needs no asset build step.
 
 ### What "done" means for each kind of task
 

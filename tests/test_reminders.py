@@ -545,7 +545,7 @@ def test_every_mascot_pose_used_in_a_template_exists():
     for path in (ROOT / "chores" / "templates").rglob("*.html"):
         used |= set(re.findall(r"mole\('(\w+)'", path.read_text(encoding="utf-8")))
     for pose in used:
-        assert (ROOT / "chores" / "static" / "mascot" / "small" / f"{pose}.png").is_file()
+        assert (ROOT / "chores" / "static" / "mascot" / "animated" / f"{pose}.svg").is_file()
 
 
 def test_app_is_branded_molechores(app):
@@ -560,7 +560,7 @@ def test_dashboard_mascot_follows_the_days_progress(app):
 
     def pose():
         page = c.get("/").get_data(as_text=True)
-        return re.search(r'id="hero-mole" src="[^"]*/mascot/small/(\w+)\.png', page).group(1)
+        return re.search(r'id="hero-mole"[^>]*data-pose="(\w+)"', page).group(1)
 
     assert pose() == "default"
     for code in ("H02", "H05"):              # Chris's two daily tasks in the fixture

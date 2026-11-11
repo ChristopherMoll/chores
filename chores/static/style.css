@@ -18,7 +18,7 @@ body { margin:0; line-height:1.55; }
 button,input,select,textarea { font:inherit; }
 button,a,input,select,textarea,summary { -webkit-tap-highlight-color:transparent; }
 a { color:inherit; text-underline-offset:3px; text-decoration-color:color-mix(in srgb,currentColor 40%,transparent); }
-a:hover { text-decoration-color:currentColor; }
+@media(hover:hover) and (pointer:fine) { a:hover { text-decoration-color:currentColor; } }
 button,summary,select { cursor:pointer; }
 button:disabled { cursor:default; }
 :focus-visible { outline:3px solid var(--accent); outline-offset:4px; }
@@ -60,7 +60,7 @@ summary::-webkit-details-marker { display:none; }
 .avatar.big { width:44px; height:44px; font-size:1.1rem; }
 .menu-pop { position:absolute; top:100%; right:0; min-width:210px; z-index:40; padding:.4rem; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:14px; background:var(--paper); box-shadow:var(--shadow); }
 .menu-pop a,.menu-pop button { display:block; padding:.7rem; width:100%; border-radius:8px; text-align:left; font-size:.9rem; text-decoration:none; }
-.menu-pop a:hover,.menu-pop button:hover { background:var(--soft); }
+@media(hover:hover) and (pointer:fine) { .menu-pop a:hover,.menu-pop button:hover { background:var(--soft); } }
 .wrap { width:100%; max-width:1000px; margin:0 auto; padding:1.5rem max(1.1rem,env(safe-area-inset-right)) calc(var(--nav-height) + env(safe-area-inset-bottom) + 2rem) max(1.1rem,env(safe-area-inset-left)); }
 .wrap.wide { max-width:1240px; }
 .wrap.management-wrap { max-width:1600px; }
@@ -85,15 +85,15 @@ summary::-webkit-details-marker { display:none; }
 
 /* Controls and readable, spacious forms. */
 .btn { display:inline-flex; align-items:center; justify-content:center; gap:.5rem; min-height:44px; padding:.65rem 1rem; border:1px solid var(--line); border-radius:11px; background:var(--paper); color:var(--ink); font-size:.9rem; line-height:1.4; font-weight:600; text-decoration:none; }
-.btn:hover { background:var(--soft); border-color:color-mix(in srgb,var(--accent) 40%,var(--line)); }
+@media(hover:hover) and (pointer:fine) { .btn:hover { background:var(--soft); border-color:color-mix(in srgb,var(--accent) 40%,var(--line)); } }
 .btn.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
-.btn.primary:hover { filter:brightness(.94); }
+@media(hover:hover) and (pointer:fine) { .btn.primary:hover { filter:brightness(.94); } }
 .btn:disabled { opacity:.55; }
 .btn.danger { color:var(--warn); border-color:var(--warn); }
 .btn.wide { width:100%; }
 .linklike { background:none; border:0; padding:0; color:inherit; font:inherit; text-decoration:underline; cursor:pointer; }
 .icon-button { display:inline-grid; place-items:center; min-width:44px; min-height:44px; border:1px solid transparent; border-radius:10px; background:transparent; color:var(--muted); font-size:1.6rem; }
-.icon-button:hover { background:var(--soft); }
+@media(hover:hover) and (pointer:fine) { .icon-button:hover { background:var(--soft); } }
 .text-action { display:inline-flex; align-items:center; gap:.35rem; min-height:44px; color:var(--accent); font-size:.875rem; background:none; border:0; padding:.3rem 0; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
 .text-action .icon { width:17px; height:17px; }
 input,select,textarea { width:100%; min-height:44px; padding:.65rem .75rem; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:9px; font-size:1rem; line-height:1.4; }
@@ -152,10 +152,10 @@ ul.tasks { list-style:none; padding:0 1rem; margin:0; background:var(--paper); b
 .tick { width:44px; height:44px; display:grid; place-items:center; position:relative; color:var(--accent-ink); background:transparent; border:0; border-radius:50%; padding:0; }
 .tick::before { content:''; position:absolute; inset:7px; border:1.5px solid var(--muted); border-radius:50%; }
 .tick .icon { width:20px; height:20px; opacity:0; position:relative; }
-.tick:hover:not(:disabled)::before { border-color:var(--accent); background:var(--soft); }
+@media(hover:hover) and (pointer:fine) { .tick:hover:not(:disabled)::before { border-color:var(--accent); background:var(--soft); } }
 .task.done .tick::before { background:var(--accent); border-color:var(--accent); }
 .task.done .tick .icon { opacity:1; }
-.task.done .tick:hover:not(:disabled)::before { background:var(--accent); }
+@media(hover:hover) and (pointer:fine) { .task.done .tick:hover:not(:disabled)::before { background:var(--accent); } }
 .tick:disabled:not([aria-pressed=true]) { opacity:.45; }
 .task.saving { opacity:.6; }
 .task-body { min-width:0; flex:1; }

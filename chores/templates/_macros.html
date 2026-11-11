@@ -19,13 +19,14 @@
 {%- endmacro %}
 
 {% macro mole(pose, size='', alt='') %}
-<img class="mole {{ size }}" src="{{ url_for('static', filename='mascot/small/' ~ pose ~ '.png') }}" alt="{{ alt }}" width="112" height="112">
+<span class="mole {{ size }}" data-mascot data-pose="{{ pose }}" {% if alt %}role="img" aria-label="{{ alt }}"{% else %}aria-hidden="true"{% endif %}>{{ mascot_art(pose) }}</span>
 {% endmacro %}
 
 {% macro task_row(r, own, viewer, kind='mine') %}
 {% set t = r.task %}{% set c = r.completion %}
-{% set allowed = own and viewer.role == 'member' and (t.owner in (viewer.username, 'shared', 'volunteer') or (r.done and c.user_id == viewer.id)) %}
-{% set interactive = allowed and not r.waiting and not r.blocked and not r.cancelled and (not r.done or c.user_id == viewer.id) %}
+{% set can_undo = own and viewer.role == 'member' and r.done and c.user_id == viewer.id and not r.cancelled %}
+{% set allowed = viewer.role == 'member' and ((own and t.owner in (viewer.username, 'shared', 'volunteer')) or can_undo) %}
+{% set interactive = not r.cancelled and (can_undo or (allowed and not r.done and not r.waiting and not r.blocked)) %}
 {% set row_key = 'occurrence-' ~ r.occurrence_id if r.occurrence_id else 'task-' ~ t.id %}
 <li class="task{{ ' done' if r.done }}{{ ' waiting' if r.waiting or r.blocked }}" data-task="{{ t.id }}" data-row-key="{{ row_key }}" id="{{ row_key }}"{% if r.waiting and r.ready_at %} data-ready-at="{{ r.ready_at.isoformat() }}"{% endif %}>
   <form method="post" action="{{ url_for('main.toggle', task_id=t.id) }}" class="tick-form">
@@ -35,7 +36,7 @@
     {% if r.occurrence_id %}<input type="hidden" name="occurrence_id" value="{{ r.occurrence_id }}">{% endif %}
     <button class="tick" type="submit" {{ 'disabled' if not interactive }} aria-label="{{ ('Undo ' if r.done else 'Mark done: ') ~ t.name }}" aria-pressed="{{ 'true' if r.done else 'false' }}">{{ icon('check') }}</button>
   </form>
-  <details class="task-body">
+  <div class="task-content"><details class="task-body">
     <summary>
       <span class="task-title-line"><span class="task-name">{{ t.name }}</span>{{ icon('chevron', 'disclosure') }}</span>
       <span class="task-meta">
@@ -64,6 +65,9 @@
       {% if allowed and r.has_sequence %}<form method="post" action="{{ url_for('main.start_sequence', task_id=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="run_token" value="{{ run_token() }}"><button type="submit" class="text-action">Start another run</button></form>{% endif %}
     </div>
   </details>
+  {% if can_undo %}<form method="post" action="{{ url_for('main.toggle', task_id=t.id) }}" class="tick-form undo-form"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="done" value="0"><input type="hidden" name="period" value="{{ r.period_key }}">{% if r.occurrence_id %}<input type="hidden" name="occurrence_id" value="{{ r.occurrence_id }}">{% endif %}<button class="text-action undo-completion" type="submit" aria-label="Undo completion: {{ t.name }}">Undo completion</button></form>
+  {% elif r.done and viewer.role == 'member' and not r.cancelled %}<p class="undo-note muted small">{{ c.doer }} can undo this completion.</p>{% endif %}
+  </div>
 </li>
 {% endmacro %}
 

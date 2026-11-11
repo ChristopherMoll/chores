@@ -6,7 +6,8 @@
 <div class="dashboard" data-view="{{ selected }}" data-own="{{ 'true' if own else 'false' }}">
   <section class="hero">
     <div class="hero-copy"><p class="eyebrow">{{ today|datefmt('%A, %B %-d') }}</p><h1>{{ 'Hi, ' ~ who.display_name ~ '.' if own else who.display_name ~ "'s tasks" }}</h1><p class="lede" id="hero-lede">{% if today_progress.total and today_progress.done == today_progress.total %}Today's list is taken care of.{% elif today_progress.total %}A little at a time.{% else %}A little breathing room today.{% endif %}</p></div>
-    <img class="mole hero-mole" id="hero-mole" src="{{ url_for('static', filename='mascot/small/' ~ ('celebrate' if today_progress.total and today_progress.done == today_progress.total else 'default') ~ '.png') }}" alt="" width="112" height="112" data-working="{{ url_for('static', filename='mascot/small/default.png') }}" data-all-done="{{ url_for('static', filename='mascot/small/celebrate.png') }}">
+    {% set all_done = today_progress.total and today_progress.done == today_progress.total %}
+    <span class="mole hero-mole" id="hero-mole" data-mascot data-pose="{{ 'celebrate' if all_done else 'default' }}" aria-hidden="true"><span data-mole-state="working" {{ 'hidden' if all_done }}>{{ mascot_art('default') }}</span><span data-mole-state="celebrate" {{ 'hidden' if not all_done }}>{{ mascot_art('celebrate') }}</span></span>
   </section>
   {% if not own %}<p class="viewing-note">You're viewing {{ who.display_name }}'s list. <a href="{{ url_for('main.home') }}">Back to my tasks</a></p>{% endif %}
   <nav class="period-tabs" aria-label="Task period">

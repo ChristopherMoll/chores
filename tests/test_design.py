@@ -95,7 +95,7 @@ def test_completed_tasks_are_kept_accessible_for_undo(app):
     tid = task_id(app, "H02")
     c.post(f"/tasks/{tid}/toggle", data={"csrf": token, "done": "1"})
     page = c.get("/").text
-    completed = page[page.index('<details class="completed-group">'):]
+    completed = page[page.index('<details class="completed-group"'):]
     assert f'id="task-{tid}"' in completed
     assert 'aria-label="Undo Dishes"' in completed
 

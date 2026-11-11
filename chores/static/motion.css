@@ -1,0 +1,71 @@
+/* Motion is decorative; every action remains a native button or form. */
+.mole { display:inline-grid; place-items:center; position:relative; vertical-align:middle; }
+.mole-art,.mole > [data-mole-state] { display:block; width:100%; height:100%; }
+.mole-art { overflow:visible; }
+.mole > [data-mole-state] { grid-area:1 / 1; }
+.mole-body,.mole-confetti,.mole-thought,.mole-thought-dot,.mole-bulb,.mole-trophy,.mole-ray,.mole-check { transform-box:fill-box; transform-origin:center; }
+.mole-body { transform-origin:50% 95%; }
+.mole-lid { opacity:0; pointer-events:none; }
+:root[data-motion=on] .mole.is-visible .mole-body { animation:mole-breathe 5.8s ease-in-out infinite; }
+:root[data-motion=on] .mole.is-visible.is-blinking .mole-lid { animation:mole-blink .2s ease-in-out; }
+:root[data-motion=on] .mole.is-visible.is-nodding .mole-body { animation:mole-nod .65s ease-in-out; }
+:root[data-motion=on] .mole.is-visible.is-cheering .mole-body { animation:mole-cheer .85s cubic-bezier(.2,.7,.3,1); }
+:root[data-motion=on] .mole.is-visible[data-pose=celebrate] .mole-confetti { animation:mole-confetti .95s ease-out both; }
+:root[data-motion=on] .mole.is-visible .mole-confetti:nth-child(even) { animation-delay:.08s; }
+:root[data-motion=on] .mole.is-visible .mole-thought { animation:mole-think 4.8s ease-in-out infinite; }
+:root[data-motion=on] .mole.is-visible .mole-bulb { animation:mole-idea 5s ease-in-out infinite; }
+:root[data-motion=on] .mole.is-visible .mole-ray { animation:mole-ray 4.5s ease-in-out infinite; }
+:root[data-motion=on] .mole.is-visible .mole-trophy { animation:mole-trophy 5s ease-in-out infinite; }
+:root[data-motion=on] .mole.is-nodding .mole-check { animation:mole-check .55s ease-out; }
+:root[data-motion-paused=true] .mole * { animation-play-state:paused!important; }
+@keyframes mole-breathe { 0%,100% { transform:translateY(0) scaleY(1); } 50% { transform:translateY(-3px) scaleY(1.008); } }
+@keyframes mole-blink { 0%,100% { opacity:0; } 28%,72% { opacity:1; } }
+@keyframes mole-nod { 0%,100% { transform:rotate(0); } 35% { transform:rotate(2deg) translateY(3px); } 65% { transform:rotate(-1deg); } }
+@keyframes mole-cheer { 0%,100% { transform:translateY(0) rotate(0); } 28% { transform:translateY(-17px) rotate(-3deg); } 55% { transform:translateY(1px) rotate(2deg); } 76% { transform:translateY(-5px) rotate(-1deg); } }
+@keyframes mole-confetti { from { opacity:0; transform:translateY(-18px) rotate(-10deg); } to { opacity:1; transform:translateY(0) rotate(0); } }
+@keyframes mole-think { 0%,70%,100% { transform:translateY(0) rotate(0); } 82% { transform:translateY(-4px) rotate(5deg); } }
+@keyframes mole-idea { 0%,65%,100% { transform:translateY(0); } 80% { transform:translateY(-5px); } }
+@keyframes mole-ray { 0%,65%,100% { opacity:1; } 80% { opacity:.55; } }
+@keyframes mole-trophy { 0%,75%,100% { transform:rotate(0); } 83% { transform:rotate(-3deg); } 92% { transform:rotate(2deg); } }
+@keyframes mole-check { 0%,100% { transform:scale(1); } 45% { transform:scale(1.12); } }
+
+button,a.btn,summary,.day-choice { touch-action:manipulation; }
+html { scroll-padding-bottom:calc(var(--nav-height) + env(safe-area-inset-bottom) + 1rem); }
+button,summary { scroll-margin-bottom:calc(var(--nav-height) + env(safe-area-inset-bottom) + 1rem); }
+.task-content { flex:1; min-width:0; }
+.undo-form { margin:.2rem 0 0; }
+.undo-completion { min-height:44px; padding:.35rem .5rem; margin-left:-.5rem; font-weight:600; }
+.undo-note { margin:.2rem 0; }
+.completed-group > summary { flex-wrap:wrap; }
+.completed-group > summary .completed-hint { background:none; border-radius:0; margin-left:auto; font-size:.75rem; }
+.completed-group > p { padding:0 .1rem; }
+.toast { bottom:calc(var(--keyboard-inset,0px) + var(--nav-height) + env(safe-area-inset-bottom) + 1rem); }
+.toast button { min-height:44px; min-width:44px; }
+.toast #toast-close { min-width:44px; }
+.menu > summary { min-height:44px; min-width:44px; justify-content:center; }
+.day-picker { grid-template-columns:repeat(auto-fit,minmax(3.5rem,1fr)); }
+.task-editor .day-picker { grid-template-columns:repeat(auto-fit,minmax(3.5rem,1fr)); }
+input,textarea,select { scroll-margin-block:5rem; }
+:root[data-motion=on] :is(.btn,.tick,.text-action,.icon-button,.app-nav a,.day-choice span) { transition:transform .12s ease, background-color .16s ease, border-color .16s ease; }
+:root[data-motion=on] :is(.btn,.text-action,.icon-button).is-pressed { transform:scale(.97); }
+:root[data-motion=on] .tick.is-pressed { transform:scale(.9); }
+:root[data-motion=on] .app-nav a.is-pressed .icon { transform:translateY(2px) scale(.92); }
+:root[data-motion=on] .day-choice.is-pressed span { transform:scale(.94); }
+.task.completion-confirmed .tick::before { background:var(--accent); border-color:var(--accent); }
+.task.completion-confirmed .tick .icon { opacity:1; }
+:root[data-motion=on] .task.completion-confirmed .tick .icon { animation:check-pop .24s ease-out; }
+:root[data-motion=on] .task.completion-confirmed .tick .icon path { stroke-dasharray:24; animation:check-draw .2s ease-out; }
+:root[data-motion=on] .task.undo-confirmed .tick { animation:check-pop .18s ease-out; }
+:root[data-motion=on] .task-body[open] .task-detail { animation:detail-unfold .2s ease-out; }
+:root[data-motion=on] #task-editor:not([hidden]) { animation:editor-reveal .23s ease-out; }
+:root[data-motion=on] .flash { animation:feedback-arrive .3s ease-out; }
+:root[data-motion=on] .app-nav a.on { animation:nav-arrive .25s ease-out; }
+@keyframes check-pop { 0% { transform:scale(.7); } 65% { transform:scale(1.15); } 100% { transform:scale(1); } }
+@keyframes check-draw { from { stroke-dashoffset:24; } to { stroke-dashoffset:0; } }
+@keyframes detail-unfold { from { opacity:0; transform:translateY(-5px); } to { opacity:1; transform:translateY(0); } }
+@keyframes editor-reveal { from { opacity:0; transform:translateX(12px); } to { opacity:1; transform:translateX(0); } }
+@keyframes feedback-arrive { from { opacity:.4; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+@keyframes nav-arrive { from { background-color:transparent; } to { background-color:var(--soft); } }
+@media(max-width:999px) { :root[data-keyboard=true] .app-nav { display:none; } }
+@media(min-width:1000px) { .toast { bottom:calc(var(--keyboard-inset,0px) + 1.5rem); } }
+@media(prefers-reduced-motion:reduce) { .mole * { animation:none!important; } }

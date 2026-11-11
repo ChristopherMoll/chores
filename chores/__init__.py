@@ -7,9 +7,9 @@ from pathlib import Path
 from flask import Flask, g, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from . import auth, db, logic, periods
+from . import auth, db, logic, periods, mascots
 
-__version__ = "1.7.0"
+__version__ = "1.8.0"
 
 
 def _env_bool(name, default):
@@ -60,6 +60,7 @@ def create_app(test_config=None):
     app.register_blueprint(views.bp)
     app.register_blueprint(cms.bp)
     app.register_blueprint(admin.bp)
+    app.jinja_env.globals["mascot_art"] = mascots.artwork
 
     @app.context_processor
     def inject():

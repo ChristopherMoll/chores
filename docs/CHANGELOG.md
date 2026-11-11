@@ -2,6 +2,17 @@
 
 All notable changes to this project are recorded here. Versions follow [semantic versioning](https://semver.org): the major number goes up for changes that need a manual step (a data migration or config change), the minor number for new features, and the patch number for fixes.
 
+## [1.8.0] - 2026-11-10
+
+### Added
+- **Visible Undo completion:** each completed task now has a labeled button beneath its name, without opening its details. The Completed disclosure says Review & undo. Several displayed completions can be corrected independently, without Siri's one-hour limit. Shared tasks retain the actual-doer rule, and undoing a sequence still protects later completed steps. Early sequence completions can be undone while their original ready time is still in the future.
+- **Animated vector mascots:** inline SVGs replace the static illustrations, with occasional blinks, gentle breathing, completion nods, a celebration bounce, and moving question-mark, lightbulb, trophy and confetti details. Original SVG exports are retained; a small Python preparation tool maps their parts and creates presentation-only artwork without conflicting styles or IDs.
+- **Responsive feedback:** native touch controls gain press feedback that cancels during scrolling; checkmarks animate only after a confirmed save. List movement and progress changes animate while retaining scroll position and disclosures. Ready sequence steps receive a brief highlight. Desktop editors, task details, navigation selection and save confirmations have short transitions.
+- **Phone comfort:** smaller feedback controls now have 44px touch targets, hover styling is limited to devices with a precise hovering pointer, and form/notification positioning accounts for the visual viewport when a phone keyboard is open. Day selectors adapt to enlarged text and narrow editor panels. Pinch zoom and native scrolling remain available.
+
+### Changed
+- Quiet celebrations and the device's Reduce Motion preference disable both CSS and JavaScript motion. Mascot animation stops offscreen and pauses when the app is hidden. Native forms and static illustrations continue to work without JavaScript. No animation or touch library is required.
+
 ## [1.7.0] - 2026-11-10
 
 No manual migration: the normal update upgrades SQLite to schema 3, preserving existing tasks, completions, reminders and Siri keys.
