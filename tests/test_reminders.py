@@ -84,26 +84,20 @@ def test_completion_from_old_schedule_does_not_hide_current_one(app):
 
 
 def test_simultaneous_cross_off_is_not_an_error(app):
-    class Racy:
-        """The existence check sees nothing, as if the other tap hadn't landed yet."""
-        def __init__(self, real):
-            self.real, self.first = real, True
-
-        def execute(self, sql, *args):
-            if self.first:
-                self.first = False
-                return self.real.execute("SELECT * FROM completions WHERE 0")
-            return self.real.execute(sql, *args)
-
-        def __getattr__(self, name):
-            return getattr(self.real, name)
-
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
     with app.app_context():
-        task = set_task("H02", frequency="daily")
-        chris = db.get_db().execute("SELECT * FROM users WHERE username = 'chris'").fetchone()
-        assert logic.toggle(chris, task) is True
-        with mock.patch.object(logic, "get_db", lambda: Racy(db.get_db())):
-            assert logic.toggle(chris, task) is True
+        tid = set_task("H02", frequency="daily", owner="shared")["id"]
+    barrier = Barrier(2)
+    def finish(name):
+        with app.app_context():
+            task = db.get_db().execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
+            user = logic.user_by_name(name)
+            barrier.wait(timeout=10)
+            return logic.toggle(user, task, desired_done=True)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert list(pool.map(finish, ("chris", "andrea"))) == [True, True]
+    with app.app_context():
         assert db.get_db().execute("SELECT COUNT(*) FROM completions").fetchone()[0] == 1
 
 
@@ -162,7 +156,7 @@ def test_v1_database_migrates_without_losing_history(tmp_path):
     """)
     db.init_schema(conn)
     db.init_schema(conn)     # running it again must be harmless
-    assert conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0] == "3"
+    assert conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0] == "4"
     assert conn.execute("SELECT points FROM completions WHERE task_id = 7").fetchone()[0] == 5
     assert conn.execute("SELECT hours_month FROM tasks WHERE id = 7").fetchone()[0] == 4
     assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1

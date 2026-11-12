@@ -3,6 +3,6 @@
 {% block title %}{{ row.task.name }}{% endblock %}
 {% block content %}
 <p><a class="text-action" href="{{ url_for('main.home') }}">{{ icon('arrow') }} My tasks</a></p>
-<div class="page-head"><div><p class="eyebrow">{{ row.scheduled_date|datefmt('%A, %B %-d') }}</p><h1>{{ row.task.name }}</h1><p class="muted">Just this occurrence. Your other scheduled days stay as they are.</p></div></div>
+<div class="page-head"><div><p class="eyebrow">{{ row.scheduled_date|human_date }}</p><h1>{{ row.task.name }}</h1><p class="muted">This scheduled task. Other dates stay as they are.</p></div></div>
 <section id="occurrence-region"><ul class="tasks">{{ task_row(row, true, g.user) }}</ul></section>
 {% endblock %}

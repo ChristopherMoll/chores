@@ -9,7 +9,7 @@
 <section class="card" id="new-key">
   <h2>Your new voice key</h2>
   <p>Copy it into your shortcut now. For your security it won’t be shown again.</p>
-  <input class="voice-key" type="text" readonly value="{{ new_key }}" aria-label="Voice key" autocomplete="off" spellcheck="false">
+  <input class="voice-key" id="voice-key" type="text" readonly value="{{ new_key }}" aria-label="Voice key" autocomplete="off" spellcheck="false"><button class="btn" type="button" data-copy-from="voice-key">Copy voice key</button>
   <p class="muted small">Anyone with this key can cross off your tasks, so keep it out of shortcuts you share.</p>
 </section>
 {% endif %}
@@ -30,6 +30,7 @@
 
 <section class="card">
   <h2>Build the shortcut</h2>
+  <p><code id="voice-api-url">{{ api_url }}</code> <button class="btn" type="button" data-copy-from="voice-api-url">Copy API address</button></p>
   <p class="muted small">In the Shortcuts app on your iPhone, tap <strong>+</strong> and name it <strong>I did a chore</strong>. Then add these actions:</p>
   <ol>
     <li><strong>Ask for Input</strong>: type Text, prompt <em>Which chore did you complete?</em></li>
@@ -44,6 +45,9 @@
     <li><strong>What chores do I have left today</strong>: text <code>what's left</code>. Siri reads your remaining daily chores, then anything due today or overdue.</li>
     <li><strong>Undo my last chore</strong>: text <code>undo</code> (works for an hour)</li>
     <li><strong>What's my chore score</strong>: text <code>score</code></li>
+    <li><strong>Add a chore</strong>: keep Ask for Input, then send <code>add a task</code>, a space, and the input as <code>text</code>. It creates a one-off task owned by you.</li>
   </ul>
+  <p class="muted small">Siri understands nicknames from each task's Also called field. When several dates or laundry loads are ready for the same task, it chooses the oldest ready one and says which date it used. UI undo is available under Completed for correcting several tasks.</p>
+  <details class="fold"><summary>Optional: choose when two task names match</summary><p class="small muted">The API reply includes an <code>options</code> list when names are ambiguous. You can use If → Choose from List in Shortcuts, then send the chosen full name to the same API. Keep the spoken fallback as well. This optional interaction still needs testing on your particular iPhone, Watch or CarPlay setup.</p></details>
 </section>
 {% endblock %}

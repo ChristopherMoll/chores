@@ -5,6 +5,8 @@ import csv
 import io
 import json
 import math
+import re
+import calendar
 from datetime import date, datetime
 
 from flask import (Blueprint, Response, abort, flash, g, redirect, render_template, request,
@@ -18,7 +20,8 @@ bp = Blueprint("manage", __name__, url_prefix="/manage")
 
 GROUPS = ["Home", "Out", "Caregiving", "Magic", "Wild"]
 DUE_FIELDS = ("due_date", "due_weekday", "due_monthday", "due_time")
-FIELDS = ("code", "grp", "name", "description", "frequency", "owner", "hours_month", "notes", "active", "selected_days") + DUE_FIELDS
+REPEAT_FIELDS = ("repeat_every", "repeat_unit", "repeat_start", "year_month", "year_day")
+FIELDS = ("code", "grp", "name", "description", "frequency", "owner", "hours_month", "notes", "active", "selected_days", "aliases", "minutes_each") + REPEAT_FIELDS + DUE_FIELDS
 
 
 def _parse_hours(raw):
@@ -52,11 +55,45 @@ def parse_due(freq, due_date="", due_weekday="", due_monthday="", due_time=""):
             out["due_monthday"] = int(due_monthday)
             if not 1 <= out["due_monthday"] <= 31:
                 raise ValueError
-        elif freq in ("daily", "selected") and due_time:
+        elif freq in ("daily", "selected", "interval", "yearly") and due_time:
             out["due_time"] = datetime.strptime(due_time, "%H:%M").strftime("%H:%M")
     except ValueError:
         raise ValueError(f"That due setting doesn't look right for a {freq} task.")
     return out
+
+
+def parse_aliases(raw):
+    aliases = list(dict.fromkeys(part.strip() for part in re.split(r"[,;\n]", raw) if part.strip()))
+    if len(aliases) > 20 or any(len(a) > 80 for a in aliases):
+        raise ValueError("Use up to 20 nicknames, each at most 80 characters.")
+    return "\n".join(aliases)
+
+
+def parse_repeat(freq, values):
+    data = {"repeat_every": 1, "repeat_unit": "months", "repeat_start": None, "year_month": None, "year_day": None}
+    if freq not in ("interval", "yearly"):
+        return data
+    try:
+        data["repeat_start"] = date.fromisoformat(str(values.get("repeat_start") or "")).isoformat()
+        if freq == "interval":
+            data["repeat_every"] = int(values.get("repeat_every", 1))
+            data["repeat_unit"] = values.get("repeat_unit", "months")
+            if not 1 <= data["repeat_every"] <= 120 or data["repeat_unit"] not in ("weeks", "months"):
+                raise ValueError
+        else:
+            data["year_month"] = int(values.get("year_month") or 0)
+            data["year_day"] = int(values.get("year_day") or 0)
+            date(2000, data["year_month"], data["year_day"])  # leap day is supported
+            first = date.fromisoformat(data["repeat_start"])
+            year = first.year
+            aligned = date(year, data["year_month"], min(data["year_day"], calendar.monthrange(year, data["year_month"])[1]))
+            if aligned < first:
+                year += 1
+                aligned = date(year, data["year_month"], min(data["year_day"], calendar.monthrange(year, data["year_month"])[1]))
+            data["repeat_start"] = aligned.isoformat()
+    except (TypeError, ValueError):
+        raise ValueError("Choose a first due date and a valid repeat (1–120 weeks/months), or a valid yearly month and day.") from None
+    return data
 
 
 # ------------------------------------------------------------------ tasks ---
@@ -93,7 +130,8 @@ def tasks():
                            summary={r["owner"]: r for r in summary}, members=logic.members(),
                            loads={m["username"]: logic.load_hours(m["username"]) for m in logic.members()},
                            workload_tasks=[{"id": t["id"], "owner": t["owner"], "frequency": t["frequency"],
-                                            "hours": t["hours_month"] or 0, "active": bool(t["active"])}
+                                            "hours": t["hours_month"] or 0, "active": bool(t["active"]), "minutes_each": t["minutes_each"],
+                                            "selected_days": t["selected_days"], "repeat_every": t["repeat_every"], "repeat_unit": t["repeat_unit"]}
                                            for t in get_db().execute("SELECT * FROM tasks")],
                            sequence_links={str(t["root_task_id"]): [step["task_id"] for step in scheduling.recipe(t["root_task_id"])]
                                            for t in get_db().execute("SELECT root_task_id FROM task_sequences")},
@@ -122,20 +160,30 @@ def tasks_bulk():
             errors.append(f"Row {tid}: bad owner or frequency.")
             continue
         previous = db.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
+        if not previous:
+            errors.append(f"Row {tid}: this task no longer exists.")
+            continue
+        if freq in ("interval", "yearly") and (not previous or not previous["repeat_start"] or (freq == "yearly" and not previous["year_month"])):
+            errors.append(f"Row {tid}: set this repeat's first due date in the full task editor first.")
+            continue
         if freq == "selected" and (not previous or not previous["selected_days"]):
             errors.append(f"Row {tid}: choose Selected days in the full task editor first.")
             continue
         if freq == "sequence" and scheduling.recipe(tid):
             errors.append(f"Row {tid}: remove its follow-ups before making it a sequence step.")
             continue
+        minutes = previous["minutes_each"] if hours == (round(logic.monthly_hours(previous), 2) if previous["minutes_each"] is not None else previous["hours_month"]) else None
+        if minutes is not None:
+            settings = dict(previous); settings["frequency"] = freq
+            hours = round(logic.monthly_hours(settings), 2)
         cur = db.execute(
-            "UPDATE tasks SET owner = ?, frequency = ?, hours_month = ?, active = ?, updated_at = datetime('now'),"
+            "UPDATE tasks SET minutes_each=?, owner = ?, frequency = ?, hours_month = ?, active = ?, updated_at = datetime('now'),"
             " due_date = CASE WHEN ? = 'once' THEN due_date END,"          # due settings for any other
             " due_weekday = CASE WHEN ? = 'weekly' THEN due_weekday END,"  # frequency no longer apply
             " due_monthday = CASE WHEN ? = 'monthly' THEN due_monthday END,"
-            " due_time = CASE WHEN ? IN ('daily','selected') THEN due_time END"
+            " due_time = CASE WHEN ? IN ('daily','selected','interval','yearly') THEN due_time END"
             " WHERE id = ? AND (owner IS NOT ? OR frequency IS NOT ? OR hours_month IS NOT ? OR active IS NOT ?)",
-            (owner, freq, hours, active, freq, freq, freq, freq, tid, owner, freq, hours, active))
+            (minutes, owner, freq, hours, active, freq, freq, freq, freq, tid, owner, freq, hours, active))
         changed += cur.rowcount
         if previous and previous["frequency"] != freq:
             scheduling.sync_selected(tid)
@@ -152,9 +200,12 @@ def _task_form(task=None):
     data["active"] = 1 if form.get("active") else 0
     data["selected_days"] = ""
     data["hours_month"] = None
+    data["minutes_each"] = None
+    data["aliases"] = ""
+    data.update({"repeat_every": 1, "repeat_unit": "months", "repeat_start": None, "year_month": None, "year_day": None})
     errs = []
     try:
-        data["hours_month"] = _parse_hours(form.get("hours_month"))
+        data["hours_month"] = _parse_hours(form.get("hours_month")) if form.get("effort_unit") != "minutes" else None
     except ValueError as e:
         errs.append(str(e))
     if not data["code"] or not data["name"]:
@@ -169,6 +220,21 @@ def _task_form(task=None):
             if data["frequency"] == "selected":
                 data["selected_days"] = scheduling.parse_days(form.getlist("selected_days"))
             data.update(parse_due(data["frequency"], *(form.get(k, "").strip() for k in DUE_FIELDS)))
+            repeat_values = dict(task) if task else {}
+            repeat_values.update({k: form[k] for k in REPEAT_FIELDS if k in form})
+            data.update(parse_repeat(data["frequency"], repeat_values))
+            data["aliases"] = parse_aliases(form.get("aliases", task["aliases"] if task else ""))
+            if form.get("effort_unit") == "minutes":
+                raw = form.get("minutes_each", "").strip()
+                if raw:
+                    data["minutes_each"] = float(raw)
+                    if not math.isfinite(data["minutes_each"]) or not 0 <= data["minutes_each"] <= 44640:
+                        raise ValueError("Use 0 to 44640 active minutes each time.")
+                    data["hours_month"] = round(data["minutes_each"] * scheduling.monthly_occurrences(data) / 60, 2)
+                else:
+                    data["hours_month"] = None
+            elif "effort_unit" not in form and task:
+                data["minutes_each"] = task["minutes_each"]
         except ValueError as e:
             errs.append(str(e))
     if not _valid_owner(data["owner"]):
@@ -187,6 +253,21 @@ def _sequence_context(task_id=None):
             steps.append({"task_id": int(tid) if tid.isdigit() else None, "name": name, "delay": delay, "hours": hours})
     elif task_id:
         steps = [dict(step, name="", hours="") for step in scheduling.recipe(task_id)]
+    units = request.form.getlist("step_delay_unit") if request.method == "POST" else []
+    minutes_values = request.form.getlist("step_minutes") if request.method == "POST" else []
+    for index, step in enumerate(steps):
+        step["minutes"] = minutes_values[index] if index < len(minutes_values) else ""
+        if units:
+            step["delay_unit"] = units[index] if index < len(units) else "minutes"
+        else:
+            try:
+                value = int(step["delay"])
+            except ValueError:
+                step["delay_unit"] = "minutes"
+                continue
+            divisor = 1440 if value and value % 1440 == 0 else 60 if value and value % 60 == 0 else 1
+            step["delay"] = value // divisor
+            step["delay_unit"] = {1440: "days", 60: "hours", 1: "minutes"}[divisor]
     return {"sequence_steps": steps,
             "sequence_choices": db.execute("SELECT id,name FROM tasks WHERE frequency='sequence' AND active=1 ORDER BY name").fetchall(),
             "sequence_subscribed": bool(task_id and db.execute("SELECT 1 FROM sequence_subscriptions WHERE root_task_id=? AND user_id=?",
@@ -237,7 +318,8 @@ def task_new():
         grp = request.args.get("grp", "Home")
         task = {"code": _next_code(grp if grp in GROUPS else "Home"), "grp": grp, "name": "", "description": "",
                 "frequency": "weekly", "owner": logic.VOLUNTEER, "hours_month": None, "notes": "", "active": 1,
-                "selected_days": "", **dict.fromkeys(DUE_FIELDS)}
+                "selected_days": "", "aliases": "", "minutes_each": None, "repeat_every": 1, "repeat_unit": "months",
+                "repeat_start": periods.today().isoformat(), "year_month": periods.today().month, "year_day": periods.today().day, **dict.fromkeys(DUE_FIELDS)}
     return render_template("manage/task_form.html", task=task, new=True, groups=GROUPS, weekdays=periods.WEEKDAYS,
                            owners=logic.owner_choices(), freqs=periods.FREQUENCIES,
                            back_url=safe_next(request.form.get("back") or request.args.get("back") or url_for("manage.tasks")),
@@ -308,7 +390,8 @@ def export_csv():
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["Code", "Group", "Task", "What it covers", "Frequency", "Owner", "Hours / Month", "Notes", "Active",
-                "Due Date", "Due Weekday", "Due Day", "Due Time", "Selected Days", "Sequence Steps"])
+                "Due Date", "Due Weekday", "Due Day", "Due Time", "Selected Days", "Sequence Steps",
+                "Also Called", "Minutes Each", "Repeat Every", "Repeat Unit", "First Due", "Year Month", "Year Day"])
     for t in get_db().execute("SELECT * FROM tasks ORDER BY grp, code"):
         w.writerow([t["code"], t["grp"], t["name"], t["description"], t["frequency"],
                     logic.owner_label(t["owner"]), t["hours_month"] if t["hours_month"] is not None else "",
@@ -317,7 +400,10 @@ def export_csv():
                     t["due_monthday"] or "", t["due_time"] or "",
                     ",".join(periods.WEEKDAYS[int(day)][:3] for day in t["selected_days"].split(",") if day),
                     json.dumps([{"code": get_db().execute("SELECT code FROM tasks WHERE id=?", (step["task_id"],)).fetchone()["code"],
-                                 "delay_minutes": step["delay"]} for step in scheduling.recipe(t["id"])]) if scheduling.recipe(t["id"]) else ""])
+                                 "delay_minutes": step["delay"]} for step in scheduling.recipe(t["id"])]) if scheduling.recipe(t["id"]) else "",
+                    t["aliases"], t["minutes_each"] if t["minutes_each"] is not None else "",
+                    t["repeat_every"] if t["frequency"] == "interval" else "", t["repeat_unit"] if t["frequency"] == "interval" else "",
+                    t["repeat_start"] or "", t["year_month"] or "", t["year_day"] or ""])
     return Response(buf.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": "attachment; filename=molechores-tasks.csv"})
 
@@ -391,6 +477,29 @@ def apply_import(rows):
             sets.pop("frequency", None)
         if row.get("active", "").lower() in ("yes", "no", "1", "0", "true", "false"):
             sets["active"] = 1 if row["active"].lower() in ("yes", "1", "true") else 0
+        try:
+            if row.get("also called"):
+                sets["aliases"] = parse_aliases(row["also called"])
+            freq = sets.get("frequency", task["frequency"])
+            repeat_values = dict(task)
+            for key, column in zip(REPEAT_FIELDS, ("repeat every", "repeat unit", "first due", "year month", "year day")):
+                if row.get(column):
+                    repeat_values[key] = row[column]
+            if freq in ("interval", "yearly"):
+                sets.update(parse_repeat(freq, repeat_values))
+            if row.get("minutes each"):
+                minutes = float(row["minutes each"])
+                if not math.isfinite(minutes) or not 0 <= minutes <= 44640:
+                    raise ValueError("Use a finite number of active minutes, between 0 and 44640.")
+                sets["minutes_each"] = minutes
+                settings = dict(task); settings.update(sets)
+                sets["hours_month"] = round(minutes * scheduling.monthly_occurrences(settings) / 60, 2)
+            elif "hours_month" in sets and sets["hours_month"] != task["hours_month"]:
+                sets["minutes_each"] = None
+        except (ValueError, TypeError) as e:
+            problems.append(f"Row {i} ({code}): {e}")
+            if sets.get("frequency") in ("interval", "yearly") and not task["repeat_start"]:
+                sets.pop("frequency", None)
         try:
             sets.update(_import_due(task, row, sets.get("frequency")))
         except ValueError as e:

@@ -339,7 +339,7 @@ def test_selected_reminder_is_for_one_date_and_skips_completed_date(app):
         assert sent.call_count == 1
 
 
-def test_siri_advances_ready_step_and_asks_when_two_loads_are_ready(app):
+def test_siri_advances_ready_step_and_uses_oldest_ready_load(app):
     clock(app)
     with app.app_context():
         root = laundry()
@@ -358,7 +358,9 @@ def test_siri_advances_ready_step_and_asks_when_two_loads_are_ready(app):
             scheduling.toggle(person(), wash, True)
     clock(app, "2026-11-11T13:00:00-05:00")
     _, reply = say(client, key=make_key(app, "chris"), text="dry the laundry")
-    assert not reply["ok"] and "More than one occurrence" in reply["speech"]
+    assert reply["ok"] and "oldest ready load" in reply["speech"]
+    with app.app_context():
+        assert len(scheduling.candidates(scheduling.recipe(root["id"])[0]["task_id"])) == 1
 
 
 def test_csv_round_trip_keeps_selected_days_and_sequence_links(app):
@@ -380,7 +382,8 @@ def test_csv_round_trip_keeps_selected_days_and_sequence_links(app):
 
 def test_v2_migration_preserves_all_existing_tables_and_can_be_repeated(tmp_path):
     conn = db.connect(tmp_path / "v2.sqlite3")
-    old_tasks = db.TASKS_TABLE.replace(", 'selected', 'sequence'", "")
+    old_tasks = db.TASKS_TABLE.replace(", 'selected', 'sequence', 'interval', 'yearly'", "")
+    old_tasks = old_tasks[:old_tasks.index("    selected_days")] + ");"
     old_tasks = "\n".join(line for line in old_tasks.splitlines() if "selected_" not in line)
     old_tasks = old_tasks.replace("due_time     TEXT,", "due_time     TEXT")
     conn.executescript(old_tasks.format(name="tasks") + "CREATE TABLE IF NOT EXISTS users" + db.SCHEMA.split("CREATE TABLE IF NOT EXISTS users", 1)[1])

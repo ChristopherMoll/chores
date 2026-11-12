@@ -22,7 +22,7 @@
   </section>
   <section class="card">
     <h2>Configuration</h2>
-    <p class="muted small">Read-only. Change these in <code>/etc/chores/chores.env</code> and restart the service.</p>
+    <p class="muted small">Read-only. Change these in <code>{{ info.env_file }}</code> and restart the service.</p>
     <table class="kv">
       {% for label, value, var in settings %}
       <tr><th>{{ label }}</th><td>{{ value }}<br><span class="muted small"><code>{{ var }}</code></span></td></tr>
@@ -31,12 +31,14 @@
   </section>
 </div>
 
+<section class="card system-status"><h2>Is everything ticking along?</h2><table class="kv"><tr><th>Last successful backup</th><td>{{ ops.backup_at|default('')|human_datetime }}{% if ops.backup_file %}<br><span class="muted small">{{ ops.backup_file }}</span>{% endif %}</td></tr><tr><th>Notification job started</th><td>{{ ops.notify_started_at|default('')|human_datetime }}</td></tr><tr><th>Notification job finished</th><td>{{ ops.notify_finished_at|default('')|human_datetime }}{% if ops.notify_error %}<br><span class="due overdue">Last job failed: {{ ops.notify_error }}</span>{% elif ops.notify_sent is defined %}<br><span class="muted small">{{ ops.notify_sent }} reminders reached a device</span>{% endif %}</td></tr><tr><th>Last schema/update preparation</th><td>{{ ops.migration_at|default('')|human_datetime }}{% if ops.migration_version %} · v{{ ops.migration_version }}{% endif %}</td></tr><tr><th>Updater last checked</th><td>{% if ops.get('update') %}{{ ops['update'].checked_at|human_datetime }}<br>{{ ops['update'].status }}{% if ops['update'].deployed %}<br><span class="muted small">Installed commit {{ ops['update'].deployed[:7] }}</span>{% endif %}{% else %}{{ ops.update_error|default('Not reported yet. The Windows updater reports after its next check; Linux updates are manual.') }}{% endif %}</td></tr></table><p class="muted small">These records begin with this version. A missing timestamp means no run has been reported yet.</p></section>
+<section class="card"><h2>Registered notification devices</h2><p class="muted small">Subscriptions known to the server. Device notification permission can still be changed in its settings.</p>{% if devices %}<ul class="reminder-list">{% for device in devices %}<li><span>{{ device.display_name }} · {{ 'iPhone' if 'iPhone' in device.user_agent else 'iPad' if 'iPad' in device.user_agent else 'Android' if 'Android' in device.user_agent else 'Browser' }}<br><span class="muted small">Registered {{ device.created_at|human_datetime }}</span></span></li>{% endfor %}</ul>{% else %}<p class="muted">No devices registered.</p>{% endif %}</section>
 <section class="card">
   <h2>Voice phrases that didn't work</h2>
   <p class="muted small">What Siri heard when it matched no task, or had to ask which task was meant, from the last 30 days. Useful for renaming tasks.</p>
   {% if misses %}
   <table class="kv">
-    {% for m in misses %}<tr><th>{{ m.display_name }}<br><span class="muted small">{{ m.heard_at[:16] }} UTC</span></th><td>{{ m.phrase }}</td></tr>{% endfor %}
+    {% for m in misses %}<tr><th>{{ m.display_name }}<br><span class="muted small">{{ m.heard_at|human_datetime }}</span></th><td>{{ m.phrase }}<form method="post" action="{{ url_for('admin.miss_alias', miss_id=m.id) }}" class="alias-form"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><label class="sr-only" for="alias-task-{{ m.id }}">Task for this phrase</label><select id="alias-task-{{ m.id }}" name="task_id" required><option value="">Choose a task…</option>{% for task in alias_tasks %}<option value="{{ task.id }}">{{ task.name }}</option>{% endfor %}</select><button class="btn">Add as a nickname</button></form></td></tr>{% endfor %}
   </table>
   {% else %}<p class="muted">None yet.</p>{% endif %}
 </section>

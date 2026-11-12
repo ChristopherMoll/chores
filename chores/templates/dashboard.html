@@ -3,15 +3,17 @@
 {% block title %}{{ 'My tasks' if own else who.display_name ~ "'s tasks" }}{% endblock %}
 {% block content %}
 {% set today_progress = task_views.today.progress %}
-<div class="dashboard" data-view="{{ selected }}" data-own="{{ 'true' if own else 'false' }}">
+<div class="dashboard" data-view="{{ selected }}" data-own="{{ 'true' if own else 'false' }}" data-username="{{ who.username }}">
   <section class="hero">
     <div class="hero-copy"><p class="eyebrow">{{ today|datefmt('%A, %B %-d') }}</p><h1>{{ 'Hi, ' ~ who.display_name ~ '.' if own else who.display_name ~ "'s tasks" }}</h1><p class="lede" id="hero-lede">{% if today_progress.total and today_progress.done == today_progress.total %}Today's list is taken care of.{% elif today_progress.total %}A little at a time.{% else %}A little breathing room today.{% endif %}</p></div>
     {% set all_done = today_progress.total and today_progress.done == today_progress.total %}
     <span class="mole hero-mole" id="hero-mole" data-mascot data-pose="{{ 'celebrate' if all_done else 'default' }}" aria-hidden="true"><span data-mole-state="working" {{ 'hidden' if all_done }}>{{ mascot_art('default') }}</span><span data-mole-state="celebrate" {{ 'hidden' if not all_done }}>{{ mascot_art('celebrate') }}</span></span>
   </section>
   {% if not own %}<p class="viewing-note">You're viewing {{ who.display_name }}'s list. <a href="{{ url_for('main.home') }}">Back to my tasks</a></p>{% endif %}
+  {% if away %}<p class="context-note">{{ 'You are' if own else who.display_name ~ ' is' }} away. Personal reminders are paused and the streak is protected. Tasks stay available for a helping hand.</p>{% endif %}
+  {% if own %}<form method="post" action="{{ url_for('main.quick_add') }}" class="quick-add" data-track-changes><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ run_token() }}"><label class="sr-only" for="quick-task">Add a one-off task for me</label><input id="quick-task" name="name" maxlength="80" required placeholder="Add a one-off for me…" autocomplete="off"><button class="btn primary" type="submit">{{ icon('plus') }} Add</button><details><summary class="text-action">Choose a due date</summary><label>Due date (optional)<input type="date" name="due_date"></label></details></form>{% endif %}
   <nav class="period-tabs" aria-label="Task period">
-    {% for key in ('today','week','month') %}<a href="{{ request.path }}?view={{ key }}" class="{{ 'on' if selected == key }}" {{ 'aria-current=page' if selected == key }}>{{ task_views[key].label }}<span class="tab-count" data-view-count="{{ key }}">{{ task_views[key].remaining }}</span></a>{% endfor %}
+    {% for key in ('today','week','month','once','other') %}<a href="{{ request.path }}?view={{ key }}" class="{{ 'on' if selected == key }}" {{ 'aria-current=page' if selected == key }}>{{ task_views[key].label }}<span class="tab-count" data-view-count="{{ key }}">{{ task_views[key].remaining }}</span></a>{% endfor %}
   </nav>
   <div class="task-workspace">
     <div id="tasks-region">{% include '_task_list.html' %}</div>

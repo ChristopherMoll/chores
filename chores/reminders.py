@@ -1,7 +1,7 @@
 """'Nag me about this': when each reminder is due to fire, and sending the ones that are."""
 from datetime import datetime, time, timedelta, timezone
 
-from . import periods, push, scheduling
+from . import periods, push, scheduling, planning
 from .db import get_db
 
 UNIT_MINUTES = {"minutes": 1, "hours": 60, "days": 1440}
@@ -112,13 +112,15 @@ def fire_at(rem, task, now):
 
 def occurrence(task, d):
     """Identifies what's being nagged about. A one-off whose date moves can nag again."""
-    key = periods.period_key(task["frequency"], d)
+    key = periods.task_key(task, d)
     return f"{key}:{task['due_date']}" if task["frequency"] == "once" else key
 
 
 def _is_done(task, d):
-    return get_db().execute("SELECT 1 FROM completions WHERE task_id = ? AND period_key = ?",
-                            (task["id"], periods.period_key(task["frequency"], d))).fetchone() is not None
+    key = periods.task_key(task, d)
+    return bool(get_db().execute("SELECT 1 FROM completions WHERE task_id=? AND period_key=?"
+                                 " UNION ALL SELECT 1 FROM task_skips WHERE task_id=? AND period_key=?",
+                                 (task["id"], key, task["id"], key)).fetchone())
 
 
 def _payload(task, now):
@@ -140,6 +142,8 @@ def run_due(now=None):
     now_utc = now.replace(tzinfo=periods.tz()).astimezone(timezone.utc)
     sent = scheduling.send_ready_notifications(now_utc)
     for rem in db.execute("SELECT * FROM reminders").fetchall():
+        if planning.is_away(rem["user_id"], d):
+            continue
         task = tasks.get(rem["task_id"])
         if task is None:
             continue
@@ -148,6 +152,8 @@ def run_due(now=None):
             continue
         fire = fire_at(rem, task, now)
         if fire is None or fire > now or now - fire > GRACE:
+            continue
+        if planning.is_away(rem["user_id"], fire.date()):
             continue
         if fire < datetime.fromisoformat(rem["created_at"]) or _is_done(task, d):
             continue
@@ -167,7 +173,7 @@ def run_due(now=None):
         elif results["error"]:    # nothing got through; let the next run try again
             db.execute("DELETE FROM reminder_log WHERE reminder_id = ? AND occurrence = ?", (rem["id"], occ))
             db.commit()
-    return sent
+    return sent + send_evening_summary(now)
 
 
 def _selected_reminders(rem, task, now_utc):
@@ -185,6 +191,8 @@ def _selected_reminders(rem, task, now_utc):
         created = datetime.fromisoformat(rem["created_at"]).replace(tzinfo=periods.tz()).astimezone(timezone.utc)
         if fire > now_utc or now_utc - fire > GRACE or fire < created:
             continue
+        if planning.is_away(rem["user_id"], fire.astimezone(periods.tz()).date()):
+            continue
         subs = push.subscriptions_for(rem["user_id"])
         if not subs:
             continue
@@ -199,5 +207,30 @@ def _selected_reminders(rem, task, now_utc):
             sent += 1
         elif result["error"]:
             db.execute("DELETE FROM reminder_log WHERE reminder_id=? AND occurrence=?", (rem["id"], occurrence["occurrence_key"]))
+            db.commit()
+    return sent
+
+
+def send_evening_summary(now):
+    from . import logic
+    db, sent = get_db(), 0
+    for pref in db.execute("SELECT p.*,u.username FROM evening_preferences p JOIN users u ON u.id=p.user_id WHERE u.role='member'").fetchall():
+        fire = datetime.combine(now.date(), time.fromisoformat(pref["at_time"]))
+        if fire > now or now - fire > GRACE or planning.is_away(pref["user_id"], now.date()):
+            continue
+        count = len(logic.task_views(logic.dashboard(pref["username"], now.date()), now.date())["today"]["open"])
+        subs = push.subscriptions_for(pref["user_id"])
+        if not count or not subs:
+            continue
+        claimed = db.execute("INSERT OR IGNORE INTO evening_log VALUES (?,?)", (pref["user_id"], now.date().isoformat())).rowcount
+        db.commit()
+        if not claimed:
+            continue
+        result = push.deliver(subs, {"title": "A little evening check-in", "body": f"{count} task{'s are' if count != 1 else ' is'} still on your list today. A little at a time.",
+                                     "url": "/", "tag": f"evening-{now.date()}"})
+        if result["ok"]:
+            sent += 1
+        elif result["error"]:
+            db.execute("DELETE FROM evening_log WHERE user_id=? AND local_date=?", (pref["user_id"], now.date().isoformat()))
             db.commit()
     return sent

@@ -1,14 +1,25 @@
 """Member-facing pages: dashboard, a person's detail view, scoreboard, reminders and push."""
-from datetime import timedelta
+from datetime import date, datetime, timedelta
+from urllib.parse import urlsplit
+import re
 
 from flask import (Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template, request,
                    url_for)
 
-from . import logic, periods, push, reminders, voice, scheduling
-from .auth import login_required
+from . import logic, periods, push, reminders, voice, scheduling, planning
+from .auth import login_required, safe_next
 from .db import get_db
 
 bp = Blueprint("main", __name__)
+
+
+def _back():
+    target = request.form.get("return_to") or request.form.get("back")
+    if not target and request.referrer:
+        ref = urlsplit(request.referrer)
+        if ref.netloc == request.host:
+            target = ref.path + ("?" + ref.query if ref.query else "")
+    return safe_next(target or url_for("main.home"))
 
 
 @bp.get("/")
@@ -36,6 +47,7 @@ def person(username):
         "dashboard.html",
         nags=reminders.task_ids_for(g.user["id"]),
         who=who, own=own, dash=dash, today=d,
+        away=planning.is_away(who["id"], d),
         task_views=views, selected=selected, current_view=views[selected],
     )
 
@@ -53,35 +65,59 @@ def toggle(task_id):
     if occurrence_id and (not occurrence or occurrence["task_id"] != task_id):
         abort(404)
     expected_period = request.form.get("period")
-    actual_period = occurrence["occurrence_key"] if occurrence else periods.period_key(task["frequency"])
+    undo_id = request.form.get("completion_id", type=int) if state == "0" else None
+    undo = get_db().execute("SELECT * FROM completions WHERE id=? AND task_id=?", (undo_id, task_id)).fetchone() if undo_id else None
+    if undo_id and undo and undo["user_id"] != g.user["id"]:
+        return (jsonify(ok=False, error="Only the person who crossed this off can undo it."), 403) if wants_json else abort(403)
+    override = undo["period_key"] if undo else expected_period if undo_id and expected_period else None
+    if override and state == "0":
+        linked = get_db().execute("SELECT id FROM task_occurrences WHERE task_id=? AND occurrence_key=?", (task_id, override)).fetchone()
+        if linked:
+            occurrence_id = linked["id"]
+            occurrence = scheduling.get_occurrence(occurrence_id)
+    actual_period = override or (occurrence["occurrence_key"] if occurrence else periods.task_key(task))
     if expected_period and expected_period != actual_period:
         message = "This task's schedule has moved on. Refresh your list before changing it."
         if wants_json:
             return jsonify(ok=False, error=message), 409
         flash(message, "error")
-        return redirect(request.referrer or url_for("main.home"))
+        return redirect(_back())
+    cover = request.form.get("cover") == "1"
+    effective = scheduling.occurrence_task(occurrence) if occurrence else task
+    if cover and not logic.can_steal(g.user, effective):
+        abort(403)
+    before = get_db().execute("SELECT id FROM completions WHERE task_id=? AND period_key=?", (task_id, actual_period)).fetchone()
     try:
         if not occurrence_id and task["frequency"] in ("selected", "sequence"):
             occurrence = scheduling.resolve(task)
             occurrence_id = occurrence["id"]
         logic.toggle(g.user, task, desired_done=None if state is None else state == "1", occurrence_id=occurrence_id,
-                     early=request.form.get("early") == "1")
+                     early=request.form.get("early") == "1", steal=cover, period_override=override,
+                     expected_period=actual_period if expected_period else None)
     except (PermissionError, ValueError) as e:
         if wants_json:
             return jsonify(ok=False, error=str(e)), 403 if isinstance(e, PermissionError) else 409
         flash(str(e), "error")
-        return redirect(request.referrer or url_for("main.home"))
+        return redirect(_back())
+    if cover and not before:
+        completed = get_db().execute("SELECT id,user_id FROM completions WHERE task_id=? AND period_key=?", (task_id, actual_period)).fetchone()
+        voice.notify_cover(g.user, effective, completed)
     if wants_json:
         d = periods.today()
-        dash = logic.dashboard(g.user["username"], d)
+        board_user = logic.user_by_name(request.form.get("board_user", g.user["username"]))
+        if not board_user or board_user["role"] != "member":
+            board_user = g.user
+        own = board_user["id"] == g.user["id"]
+        dash = logic.dashboard(board_user["username"], d)
         views = logic.task_views(dash, d)
         selected = request.form.get("view", "today")
         if selected not in views:
             selected = "today"
-        used_occurrence = scheduling.resolve(task, occurrence_id)
-        used_key = used_occurrence["occurrence_key"] if used_occurrence else actual_period
+        linked = get_db().execute("SELECT id FROM task_occurrences WHERE task_id=? AND occurrence_key=?", (task_id, actual_period)).fetchone()
+        used_occurrence = scheduling.get_occurrence(occurrence_id or linked["id"]) if occurrence_id or linked else None
+        used_key = actual_period
         completion = get_db().execute(
-            "SELECT c.points, c.user_id, u.display_name AS doer FROM completions c JOIN users u ON u.id=c.user_id"
+            "SELECT c.id,c.points, c.user_id, u.display_name AS doer FROM completions c JOIN users u ON u.id=c.user_id"
             " WHERE c.task_id=? AND c.period_key=?", (task_id, used_key)).fetchone()
         next_step = None
         if used_occurrence and used_occurrence["run_id"] and completion:
@@ -97,15 +133,95 @@ def toggle(task_id):
                        today=today,
                        counts={key: view["remaining"] for key, view in views.items()},
                        occurrence_id=used_occurrence["id"] if used_occurrence else None, next_step=next_step,
+                       completion_id=completion["id"] if completion else None,
                        tasks_html=render_template("_task_list.html", current_view=views[selected], selected=selected,
-                                                  own=True, nags=reminders.task_ids_for(g.user["id"]),
+                                                  own=own, nags=reminders.task_ids_for(g.user["id"]),
                                                   task_back=request.form.get("return_to", "/")),
                        volunteer_html=render_template("_volunteers.html", dash=dash,
                                                       nags=reminders.task_ids_for(g.user["id"]),
                                                       task_back=request.form.get("return_to", "/compare"))
                        if request.form.get("surface") == "together" else None,
                        name=task["name"])
-    return redirect(request.referrer or url_for("main.home"))
+    return redirect(_back())
+
+
+@bp.post("/quick-add")
+@login_required
+def quick_add():
+    try:
+        nonce = request.form.get("request_key", "")
+        if not re.fullmatch(r"[a-f0-9]{32}", nonce):
+            raise ValueError("Refresh the page and try adding your task again.")
+        tid = planning.quick_add(g.user, request.form.get("name", ""), request.form.get("due_date", ""), nonce)
+    except (ValueError, PermissionError) as e:
+        flash(str(e), "error")
+        return redirect(_back())
+    flash("Added to your One-off list.", "ok")
+    return redirect(url_for("main.home", view="once", _anchor=f"task-{tid}"))
+
+
+@bp.post("/tasks/<int:task_id>/plan")
+@login_required
+def task_plan(task_id):
+    task = _task_or_404(task_id)
+    occurrence_id = request.form.get("occurrence_id", type=int)
+    occurrence = scheduling.get_occurrence(occurrence_id) if occurrence_id else None
+    if occurrence_id and (not occurrence or occurrence["task_id"] != task_id):
+        abort(404)
+    action = request.form.get("action")
+    try:
+        if action == "clear-older":
+            count = planning.clear_older(g.user, task)
+            flash(f"Cleared {count} older date{'s' if count != 1 else ''}. No points added.", "ok")
+        elif action == "yesterday":
+            planning.yesterday(g.user, task, request.form.get("period"))
+            flash("Recorded for yesterday. Today's task stays separate.", "ok")
+        elif action in ("skip", "restore"):
+            planning.skip_task(g.user, task, request.form.get("period", ""), occurrence, restore=action == "restore")
+            flash("Task restored." if action == "restore" else "Not needed this time. No points added.", "ok")
+        else:
+            abort(400)
+    except (ValueError, PermissionError) as e:
+        flash(str(e), "error")
+    return redirect(_back())
+
+
+@bp.post("/away")
+@login_required
+def away():
+    if g.user["role"] != "member":
+        abort(403)
+    try:
+        if request.form.get("delete"):
+            get_db().execute("DELETE FROM away_dates WHERE id=? AND user_id=?", (request.form.get("delete", type=int), g.user["id"]))
+        else:
+            starts, ends = date.fromisoformat(request.form.get("starts_on", "")), date.fromisoformat(request.form.get("ends_on", ""))
+            if ends < starts or (ends - starts).days > 366:
+                raise ValueError("Choose an away range of up to one year.")
+            get_db().execute("INSERT INTO away_dates(user_id,starts_on,ends_on) VALUES (?,?,?)", (g.user["id"], starts.isoformat(), ends.isoformat()))
+        get_db().commit()
+        flash("Away dates saved. Your tasks stay available for coverage.", "ok")
+    except ValueError:
+        flash("Choose valid start and end dates, up to one year apart.", "error")
+    return redirect(url_for("main.more", _anchor="away"))
+
+
+@bp.post("/evening-summary")
+@login_required
+def evening_summary():
+    if g.user["role"] != "member":
+        abort(403)
+    try:
+        if request.form.get("enabled") == "1":
+            at = datetime.strptime(request.form.get("at_time", ""), "%H:%M").strftime("%H:%M")
+            get_db().execute("INSERT INTO evening_preferences VALUES (?,?) ON CONFLICT(user_id) DO UPDATE SET at_time=excluded.at_time", (g.user["id"], at))
+        else:
+            get_db().execute("DELETE FROM evening_preferences WHERE user_id=?", (g.user["id"],))
+        get_db().commit()
+        flash("Evening summary preference saved.", "ok")
+    except ValueError:
+        flash("Choose a valid time for your evening summary.", "error")
+    return redirect(url_for("main.more", _anchor="evening-summary"))
 
 
 @bp.get("/occurrences/<int:occurrence_id>")
@@ -127,8 +243,8 @@ def skip_occurrence(occurrence_id):
     if not occurrence:
         abort(404)
     try:
-        scheduling.skip(g.user, occurrence)
-        flash("Occurrence skipped. No points were added.", "ok")
+        planning.skip_task(g.user, scheduling.occurrence_task(occurrence), occurrence["occurrence_key"], occurrence)
+        flash("Not needed this time. No points were added.", "ok")
     except (ValueError, PermissionError) as e:
         flash(str(e), "error")
     return redirect(url_for("main.home"))
@@ -178,7 +294,10 @@ def reschedule_occurrence(occurrence_id):
     if not occurrence:
         abort(404)
     try:
-        minutes = int(request.form.get("minutes", ""))
+        unit = request.form.get("unit", "minutes")
+        if unit not in ("minutes", "hours", "days"):
+            raise ValueError("Choose minutes, hours or days.")
+        minutes = int(request.form.get("minutes", "")) * {"minutes": 1, "hours": 60, "days": 1440}[unit]
         scheduling.reschedule(g.user, occurrence, minutes)
         flash("Ready time updated for this run.", "ok")
     except (ValueError, PermissionError) as e:
@@ -194,7 +313,7 @@ def cancel_sequence(run_id):
         flash("Remaining steps cancelled. Completed work has been kept.", "ok")
     except (ValueError, PermissionError) as e:
         flash(str(e), "error")
-    return redirect(url_for("main.sequence_run", run_id=run_id))
+    return redirect(_back() if request.form.get("back") else url_for("main.sequence_run", run_id=run_id))
 
 
 @bp.post("/tasks/<int:task_id>/sequence-reminders")
@@ -240,6 +359,9 @@ def task_link(task_id):
     if task["owner"] == logic.VOLUNTEER:
         return redirect(url_for("main.compare", _anchor=f"task-{task_id}"))
     username = g.user["username"] if task["owner"] == logic.SHARED else task["owner"]
+    if task["frequency"] in ("interval", "yearly"):
+        row = next(r for r in logic.board([task["owner"]])[task["frequency"]] if r["task"]["id"] == task_id and not r["done"] and not r.get("skipped"))
+        return render_template("occurrence.html", row=dict(row, scheduled_date=periods.due_date(task, periods.today())), nags=reminders.task_ids_for(g.user["id"]))
     selected = {"daily": "today", "weekly": "week", "monthly": "month", "once": "once", "other": "other"}[task["frequency"]]
     rows = logic.task_views(logic.dashboard(username))[selected]["rows"]
     if not any(r["task"]["id"] == task_id for r in rows):
@@ -256,7 +378,14 @@ def remind(task_id):
     allowed = reminders.can_remind(task)
     if request.method == "POST" and allowed:
         try:
-            amount, unit, at_time = reminders.parse(request.form, task)
+            presets = {"morning": (0, "days", "09:00"), "evening": (1, "days", "18:00"), "hour": (1, "hours", "")}
+            preset = request.form.get("preset")
+            if preset:
+                if preset not in presets or (preset == "evening" and task["frequency"] == "daily"):
+                    raise ValueError("Choose a reminder that fits this task's schedule.")
+                amount, unit, at_time = presets[preset]
+            else:
+                amount, unit, at_time = reminders.parse(request.form, task)
         except ValueError as e:
             flash(str(e), "error")
         else:
@@ -292,6 +421,9 @@ def more():
                            reminder_items=get_db().execute(
                                "SELECT r.task_id, t.name, COUNT(*) AS n FROM reminders r JOIN tasks t ON t.id=r.task_id"
                                " WHERE r.user_id=? GROUP BY r.task_id ORDER BY t.name", (g.user["id"],)).fetchall(),
+                           today=periods.today(),
+                           away_items=get_db().execute("SELECT * FROM away_dates WHERE user_id=? ORDER BY starts_on DESC", (g.user["id"],)).fetchall(),
+                           summary_pref=get_db().execute("SELECT * FROM evening_preferences WHERE user_id=?", (g.user["id"],)).fetchone(),
                            sequence_reminder_items=get_db().execute(
                                "SELECT t.id,t.name FROM sequence_subscriptions s JOIN tasks t ON t.id=s.root_task_id"
                                " WHERE s.user_id=? ORDER BY t.name", (g.user["id"],)).fetchall())

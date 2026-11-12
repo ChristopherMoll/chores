@@ -37,6 +37,10 @@ def parse_days(values):
 
 
 def monthly_occurrences(task):
+    if task["frequency"] == "interval":
+        return 4.35 / task["repeat_every"] if task["repeat_unit"] == "weeks" else 1 / task["repeat_every"]
+    if task["frequency"] == "yearly":
+        return 1 / 12
     if task["frequency"] == "selected":
         return 4.35 * len([v for v in task["selected_days"].split(",") if v])
     return periods.OCCURRENCES_PER_MONTH.get(task["frequency"], 1)
@@ -92,11 +96,13 @@ def parse_recipe(form, root_id=None):
     if "sequence_editor" not in form:
         return None
     ids, names, delays, hours = (form.getlist(name) for name in ("step_task", "step_name", "step_delay", "step_hours"))
-    if not (len(ids) == len(names) == len(delays) == len(hours)) or len(ids) > 40:
+    units = form.getlist("step_delay_unit") or ["minutes"] * len(ids)
+    minutes_each = form.getlist("step_minutes") or [""] * len(ids)
+    if not (len(ids) == len(names) == len(delays) == len(hours) == len(units) == len(minutes_each)) or len(ids) > 40:
         raise ValueError("Check the sequence steps and try again.")
     result, used = [], {root_id}
     db = get_db()
-    for task_id, name, delay, effort in zip(ids, names, delays, hours):
+    for task_id, name, delay, effort, unit, active_minutes in zip(ids, names, delays, hours, units, minutes_each):
         name = name.strip()
         if not task_id and not name:
             continue
@@ -104,11 +110,14 @@ def parse_recipe(form, root_id=None):
             raise ValueError("A sequence can have up to 20 follow-ups.")
         try:
             tid = int(task_id) if task_id else None
-            minutes = int(delay)
+            if unit not in ("minutes", "hours", "days"):
+                raise ValueError
+            minutes = int(delay) * {"minutes": 1, "hours": 60, "days": 1440}[unit]
             h = float(effort) if effort.strip() else None
+            m = float(active_minutes) if active_minutes.strip() else None
         except ValueError:
             raise ValueError("Step delays must be whole minutes, and effort must be a number.") from None
-        if not 0 <= minutes <= 525600 or (h is not None and (not math.isfinite(h) or not 0 <= h <= 744)):
+        if not 0 <= minutes <= 525600 or (h is not None and (not math.isfinite(h) or not 0 <= h <= 744)) or (m is not None and (not math.isfinite(m) or not 0 <= m <= 44640)):
             raise ValueError("Use a delay from 0 to 525600 minutes and effort from 0 to 744 hours/month.")
         if (tid is not None and tid in used) or (not tid and len(name) > 80):
             raise ValueError("Each sequence step needs a different task and a name of at most 80 characters.")
@@ -122,7 +131,7 @@ def parse_recipe(form, root_id=None):
                 raise ValueError("A sequence cannot contain another sequence.")
             name = task["name"]
             used.add(tid)
-        result.append({"task_id": tid, "name": name, "delay": minutes, "hours": h})
+        result.append({"task_id": tid, "name": name, "delay": minutes, "hours": h, "minutes_each": m})
     return result
 
 
@@ -137,8 +146,10 @@ def save_recipe(root_task, steps):
         tid = step["task_id"]
         if not tid:
             code = "S" + uuid.uuid4().hex[:7].upper()
-            tid = db.execute("INSERT INTO tasks(code,grp,name,frequency,owner,hours_month) VALUES (?,?,?,'sequence',?,?)",
-                             (code, root_task["grp"], step["name"], root_task["owner"], step["hours"])).lastrowid
+            minutes = step.get("minutes_each")
+            hours = round(minutes * monthly_occurrences(root_task) / 60, 2) if minutes is not None else step["hours"]
+            tid = db.execute("INSERT INTO tasks(code,grp,name,frequency,owner,hours_month,minutes_each) VALUES (?,?,?,'sequence',?,?,?)",
+                             (code, root_task["grp"], step["name"], root_task["owner"], hours, minutes)).lastrowid
         saved.append({"task_id": tid, "delay": step["delay"]})
     if saved:
         db.execute("INSERT INTO task_sequences(root_task_id,steps_json) VALUES (?,?)"
@@ -151,7 +162,10 @@ def save_recipe(root_task, steps):
 def _snapshot(task, root):
     from .logic import points_for
     data = dict(task)
-    if task["frequency"] == "sequence":
+    if data.get("minutes_each") is not None:
+        base = max(1, round(data["minutes_each"] / 5))
+        data["completion_points"] = math.ceil(base * 1.5) if task["owner"] == "volunteer" else base
+    elif task["frequency"] == "sequence":
         base = max(1, round(task["hours_month"] * 60 / monthly_occurrences(root) / 5)) if task["hours_month"] else 2
         data["completion_points"] = math.ceil(base * 1.5) if task["owner"] == "volunteer" else base
     else:
@@ -174,7 +188,7 @@ def start_run(root, key, *, root_ready=True):
     now = now_utc()
     db.execute("INSERT INTO sequence_runs(id,root_task_id,root_key,name,created_at) VALUES (?,?,?,?,?)",
                (run_id, root["id"], key, root["name"], stamp(now)))
-    due = periods.due_at(root, periods.today()) if key == periods.period_key(root["frequency"]) else None
+    due = periods.due_at(root, periods.today()) if key == periods.task_key(root) else None
     db.execute("INSERT INTO task_occurrences(task_id,occurrence_key,source,scheduled_date,ready_at,due_at,run_id,position,snapshot)"
                " VALUES (?,?,'sequence',?,?,?,?,0,?)", (root["id"], key, periods.today().isoformat(), stamp(now),
                                                       stamp(due.replace(tzinfo=periods.tz())) if due else None, run_id, _snapshot(root, root)))
@@ -221,7 +235,10 @@ def completion(occurrence):
 
 def occurrence_task(occurrence):
     if occurrence["snapshot"]:
-        return json.loads(occurrence["snapshot"])
+        data = json.loads(occurrence["snapshot"])
+        for key, value in {"minutes_each": None, "aliases": "", "repeat_every": 1, "repeat_unit": "months", "repeat_start": None, "year_month": None, "year_day": None}.items():
+            data.setdefault(key, value)
+        return data
     return dict(get_db().execute("SELECT * FROM tasks WHERE id=?", (occurrence["task_id"],)).fetchone())
 
 
@@ -231,7 +248,7 @@ def candidates(task_id, include_done=False):
                             " WHERE o.task_id=? AND o.state='open' AND (r.state IS NULL OR r.state!='cancelled')"
                             " AND o.ready_at IS NOT NULL AND o.ready_at<=?"
                             + ("" if include_done else " AND NOT EXISTS(SELECT 1 FROM completions c WHERE c.task_id=o.task_id AND c.period_key=o.occurrence_key)")
-                            + " ORDER BY o.ready_at,o.id", (task_id, stamp(now_utc()))).fetchall()
+                            + " ORDER BY COALESCE(r.created_at,o.ready_at),o.position,o.id", (task_id, stamp(now_utc()))).fetchall()
 
 
 def resolve(task, occurrence_id=None):
@@ -252,7 +269,7 @@ def resolve(task, occurrence_id=None):
             return get_occurrence(today[0]["id"])
         raise ValueError("There isn't a ready occurrence of this task. Check its scheduled days or waiting steps in the app.")
     return get_db().execute("SELECT o.*,r.state AS run_state FROM task_occurrences o JOIN sequence_runs r ON r.id=o.run_id"
-                            " WHERE o.task_id=? AND o.occurrence_key=?", (task["id"], periods.period_key(task["frequency"]))).fetchone()
+                            " WHERE o.task_id=? AND o.occurrence_key=?", (task["id"], periods.task_key(task))).fetchone()
 
 
 def toggle(user, occurrence, desired_done=None, *, early=False, steal=False):
@@ -326,9 +343,17 @@ def _display_row(occurrence, d=None):
         if due_at.astimezone(timezone.utc) < now_utc():
             label = "From " + due_at.strftime("%a %b ") + str(due_at.day)
         due = {"date": due_at.date(), "label": label, "overdue": due_at.astimezone(timezone.utc) < now_utc()}
+    run_label = ""
+    run_owner = None
+    if occurrence["run_id"]:
+        run = get_db().execute("SELECT created_at FROM sequence_runs WHERE id=?", (occurrence["run_id"],)).fetchone()
+        started = local(run["created_at"])
+        run_label = periods.human_date(started.date()) + " at " + periods.format_time(started.time())
+        root = get_db().execute("SELECT * FROM task_occurrences WHERE run_id=? AND position=0", (occurrence["run_id"],)).fetchone()
+        run_owner = occurrence_task(root)["owner"] if root else None
     return {"task": task, "done": bool(c), "completion": c, "period_key": occurrence["occurrence_key"],
             "occurrence_id": occurrence["id"], "run_id": occurrence["run_id"], "run_name": occurrence["run_name"],
-            "source": occurrence["source"], "position": occurrence["position"], "scheduled_date": scheduled,
+            "source": occurrence["source"], "position": occurrence["position"], "scheduled_date": scheduled, "run_label": run_label, "run_owner": run_owner,
             "waiting": bool(ready and ready.astimezone(timezone.utc) > now_utc()), "blocked": ready is None,
             "ready_at": ready, "due": due, "last_on": None, "cancelled": occurrence["state"] != "open" or occurrence["run_state"] == "cancelled",
             "skipped": occurrence["state"] == "skipped",
@@ -409,7 +434,7 @@ def cancel_run(user, run_id):
 
 def send_ready_notifications(now=None):
     """Use the existing minute job. No browser timers or in-memory queues."""
-    from . import push
+    from . import push, planning
     db = get_db()
     now = now or now_utc()
     sent = 0
@@ -421,6 +446,8 @@ def send_ready_notifications(now=None):
         task = occurrence_task(o)
         for member in db.execute("SELECT u.id,u.username FROM sequence_subscriptions s JOIN users u ON u.id=s.user_id"
                                  " WHERE s.root_task_id=? AND u.role='member'", (o["root_task_id"],)).fetchall():
+            if planning.is_away(member["id"], now.astimezone(periods.tz()).date()) or planning.is_away(member["id"], ready.astimezone(periods.tz()).date()):
+                continue
             root = db.execute("SELECT * FROM task_occurrences WHERE run_id=? AND position=0", (o["run_id"],)).fetchone()
             doer = completion(root) if root else None
             volunteered = task["owner"] == "volunteer" and doer and doer["user_id"] == member["id"]

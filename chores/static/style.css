@@ -426,3 +426,23 @@ form.inline { display:inline; }
 .task-detail form + form { margin-top:.8rem; }
 @media(min-width:600px) { .day-picker { grid-template-columns:repeat(7,minmax(44px,1fr)); } }
 .task-editor .day-picker { grid-template-columns:repeat(4,minmax(44px,1fr)); }
+
+/* Quick capture and all five lists stay within reach on a phone. */
+.quick-add { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.6rem; margin:0 0 1rem; }
+.quick-add > details { grid-column:1/-1; }
+.quick-add > details > label { display:flex; flex-direction:column; max-width:22rem; gap:.4rem; margin:.5rem 0; }
+.period-tabs { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); }
+.period-tabs > a { grid-column:span 2; justify-content:center; min-height:44px; }
+.period-tabs > a:nth-child(n+4) { grid-column:span 3; }
+.task-plan-actions,.reminder-presets { display:flex; flex-wrap:wrap; gap:.5rem 1rem; }
+.run-cancel { padding:.2rem 1rem .7rem; }
+.sequence-group + ul.tasks,ul.tasks + .sequence-group { margin-top:.8rem; }
+.task-meta > .meta-dot:first-child { display:none; }
+.task-meta:empty { display:none; }
+.missed-dates { margin:.6rem 0; }
+.missed-dates ul { margin:.3rem 0; padding-left:1.1rem; }
+.system-status { margin-bottom:1.5rem; }
+@media(min-width:700px) { .period-tabs { grid-template-columns:repeat(5,minmax(0,1fr)); max-width:none; } .period-tabs > a,.period-tabs > a:nth-child(n+4) { grid-column:span 1; } }
+.alias-form { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.65rem; }
+.alias-form select { flex:1 1 12rem; min-width:0; max-width:100%; }
+.feed li > form { margin-left:auto; }

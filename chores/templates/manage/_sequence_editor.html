@@ -6,12 +6,12 @@
   <div class="sequence-step-editor" data-sequence-step>
     <label>Follow-up task<select name="step_task" data-step-choice><option value="">Create a new step</option>{% for choice in sequence_choices %}<option value="{{ choice.id }}" {{ 'selected' if choice.id == step.task_id }}>{{ choice.name }}</option>{% endfor %}</select></label>
     <label data-step-name>New step name<input name="step_name" maxlength="80" value="{{ step.name or '' }}" placeholder="For example, Dry the laundry"></label>
-    <div class="row"><label>Minutes after previous completion<input name="step_delay" type="number" min="0" max="525600" value="{{ step.delay|default(60) }}" inputmode="numeric"></label><label data-step-effort>Estimated active hours / month<input name="step_hours" type="number" min="0" max="744" step="0.01" value="{{ step.hours if step.hours is not none else '' }}" inputmode="decimal"></label></div>
+    <div class="row"><label>After the previous step<input name="step_delay" type="number" min="0" max="525600" value="{{ step.delay|default(1) }}" inputmode="numeric"></label><label>Wait<select name="step_delay_unit">{% for unit in ('minutes','hours','days') %}<option value="{{ unit }}" {{ 'selected' if unit == step.delay_unit|default('hours') }}>{{ unit }}</option>{% endfor %}</select></label></div><div data-step-effort><label>Active minutes each time<input name="step_minutes" type="number" min="0" max="44640" step="0.1" value="{{ step.minutes|default('') }}" inputmode="decimal"></label><input type="hidden" name="step_hours" value="{{ step.hours if step.hours is not none else '' }}"></div>
     <button type="button" class="text-action" data-remove-step hidden>Remove step</button>
   </div>
   {% endmacro %}
-  <div data-sequence-steps>{% for step in sequence_steps %}{{ step_fields(step) }}{% endfor %}{{ step_fields({'task_id':none,'name':'','delay':60,'hours':''}) }}{% if not sequence_steps %}{{ step_fields({'task_id':none,'name':'','delay':60,'hours':''}) }}{% endif %}</div>
-  <template data-sequence-template>{{ step_fields({'task_id':none,'name':'','delay':60,'hours':''}) }}</template>
+  <div data-sequence-steps>{% for step in sequence_steps %}{{ step_fields(step) }}{% endfor %}{{ step_fields({'task_id':none,'name':'','delay':1,'delay_unit':'hours','hours':''}) }}{% if not sequence_steps %}{{ step_fields({'task_id':none,'name':'','delay':1,'delay_unit':'hours','hours':''}) }}{% endif %}</div>
+  <template data-sequence-template>{{ step_fields({'task_id':none,'name':'','delay':1,'delay_unit':'hours','hours':''}) }}</template>
   <button type="button" class="btn" data-add-step hidden>+ Add a follow-up</button>
   <p class="small muted">A Sequence step has no independent repeat schedule. To reuse an existing task here, first set its Repeats to Sequence step. Existing runs keep their original steps and delays when you edit this list.</p>
   {% if g.user.role == 'member' %}<label class="check"><input type="checkbox" name="sequence_notify" {{ 'checked' if sequence_subscribed }}> Remind me when the next step becomes ready</label><p class="small muted">Optional, and just for you. Device notifications are configured in More.</p>{% endif %}

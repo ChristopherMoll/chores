@@ -12,7 +12,7 @@ from importlib.metadata import version as pkg_version
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
 
-from . import __version__, voice
+from . import __version__, voice, operations
 from .auth import admin_required, hash_password
 from .db import get_db
 
@@ -52,9 +52,31 @@ def system():
         "sqlite": sqlite3.sqlite_version,
         "db_path": path,
         "db_size": os.path.getsize(path) if os.path.exists(path) else 0,
+        "env_file": cfg["ENV_FILE"],
     }
     return render_template("admin/system.html", info=info, counts=counts, settings=settings,
-                           misses=voice.recent_misses())
+                           misses=voice.recent_misses(), ops=operations.status(),
+                           devices=db.execute("SELECT p.user_agent,p.created_at,u.display_name FROM push_subscriptions p JOIN users u ON u.id=p.user_id ORDER BY u.id,p.id").fetchall(),
+                           alias_tasks=db.execute("SELECT id,name FROM tasks WHERE active=1 ORDER BY name").fetchall())
+
+
+@bp.post("/voice-misses/<int:miss_id>/alias")
+def miss_alias(miss_id):
+    from .cms import parse_aliases
+    db = get_db()
+    miss = db.execute("SELECT phrase FROM voice_misses WHERE id=?", (miss_id,)).fetchone()
+    task = db.execute("SELECT * FROM tasks WHERE id=? AND active=1", (request.form.get("task_id", type=int),)).fetchone()
+    if not miss or not task:
+        abort(404)
+    phrase = miss["phrase"].split(" (asked:", 1)[0].strip()
+    try:
+        aliases = parse_aliases(task["aliases"] + "\n" + phrase)
+        db.execute("UPDATE tasks SET aliases=? WHERE id=?", (aliases, task["id"]))
+        db.commit()
+        flash(f"Added a nickname for {task['name']}.", "ok")
+    except ValueError as e:
+        flash(str(e), "error")
+    return redirect(url_for("admin.system"))
 
 
 @bp.route("/users", methods=["GET", "POST"])

@@ -2,6 +2,27 @@
 
 All notable changes to this project are recorded here. Versions follow [semantic versioning](https://semver.org): the major number goes up for changes that need a manual step (a data migration or config change), the minor number for new features, and the patch number for fixes.
 
+## [1.9.0] - 2026-11-11
+
+The normal update upgrades SQLite to schema 4. Existing tasks, completions, reminders, voice keys and sequence runs are preserved. No manual migration is needed.
+
+### Added
+- **Flexible repeats:** every N weeks or months from actual completion, or yearly on a calendar date. Infrequent jobs keep one outstanding deadline and support personal reminders. Month ends and February 29 use the last valid day. Completion receipts remain available to undo after a deadline advances.
+- **Quick capture:** add a one-off owned by you from My tasks, with an optional due date, or tell Siri "add a task" followed by its name.
+- **Personal planning:** Not needed this time skips a date without points and offers Restore task. Did it yesterday records forgotten work on its actual day. Away dates pause personal task reminders, sequence nudges and evening summaries, protect the streak, and keep tasks available for partner coverage.
+- **Partner coverage:** I took care of this on a partner's board credits the actual doer and notifies the owner once. The doer can undo it from the board or recent activity.
+- **Gentler reminders:** one-tap morning-of, evening-before and hour-before presets, plus an opt-in personal evening summary under More. Summaries are quiet when today's work is handled.
+- **Siri nicknames:** Also called in the task editor, plus Add as a nickname beside unmatched phrases in Admin. Starter dog, filter and tidying phrases work, along with dried/drying; Put Away Laundry stays distinct from Laundry. Copy buttons help with the manual shortcut setup.
+- **Operational status:** Admin shows backup and notification-job timestamps, updater check results, registered notification devices, installed version and the correct OS settings path. Records begin after the updated jobs run. Windows updater reports are display-only; protected updater state still controls installation.
+- **Effort estimates:** active minutes each time, including sequence steps, alongside the existing monthly-hours option. Points and workload calculations use the selected estimate.
+
+### Changed
+- Today puts overdue and timed work first, removes repetitive untimed daily labels, and groups missed selected dates with review and Clear the older ones. Clearing preserves completed history and points.
+- All five lists are near the top on phones. As needed shows Last done instead of a progress bar. Runs show their start date and an inline Cancel the rest action. Delays accept minutes, hours or days; member task details omit generated codes.
+- Siri uses the oldest ready date or load for a named task. Distinct task-name ambiguity still asks for clarification; waiting steps stay protected.
+- Open dashboards and Together check for changes about once a minute, preserving disclosures and avoiding focused forms, drafts and in-flight saves. Selected-day routines now contribute to streaks; excused, off and away days add no streak days or points.
+- Recent activity uses friendly dates and supports independent completion corrections. The manual documents the new flows and the Account & password label.
+
 ## [1.8.0] - 2026-11-10
 
 ### Added

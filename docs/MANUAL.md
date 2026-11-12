@@ -42,15 +42,15 @@ Out of scope on purpose: native mobile apps, multiple households and chat. Remin
 
 Log in and you land on **My tasks**. On an iPhone the four main destinations are in the bottom navigation. Desktop uses a persistent sidebar with direct access to Manage tasks.
 
-- **Today** combines daily routines with weekly, monthly, and one-off tasks due today or overdue in their current period. Progress counts exactly the tasks in that list, once each.
+- **Today** combines daily routines and tasks due today or overdue. Overdue and timed work comes first. Older selected dates are grouped together; progress counts the displayed actionable dates. Weekly, monthly, interval, yearly and one-off deadlines are included when due.
 - **This week** shows weekly tasks and monthly or one-off deadlines through the end of the household's week. **This month** shows monthly tasks and one-off deadlines through month end. Daily routines stay in Today.
-- **One-off** includes tasks without a due date, so they remain easy to find. **As needed** holds your unscheduled tasks. The links below or beside the active list reach both.
+- **One-off** includes tasks without a due date, so they remain easy to find. **As needed** holds your unscheduled tasks. All five lists sit near the top on phones and desktop. As needed shows Last done instead of a progress bar.
 - **Tap the circle** to mark a task done. An Undo action stays in the feedback message until dismissed or replaced. Expand **Completed → Review & undo** and choose **Undo completion** beneath any task you crossed off to fix several mistakes independently; task details can stay closed. The UI has no one-task or one-hour limit for displayed completions. Only the actual doer can undo a shared task. For sequences, undo later completed steps first.
-- **Tap a task's name** to see what it covers, what done looks like, reminder settings, and editing. Details such as codes and monthly effort estimates stay out of the main task row.
+- **Tap a task's name** to see what it covers, what done looks like, reminder settings, and editing. Generated codes stay in Manage tasks. Task details show active minutes each time or the monthly effort estimate.
 - **Together** contains household contributions, assigned effort, activity, and volunteer opportunities. Volunteer completions still earn 50% bonus points. Friendly competition is available in a closed disclosure.
 - **Progress** contains your weekly contributions, daily history, current milestones, and recent activity. **More** contains management, account links, reminder settings, installation help, and device-local appearance and quiet-celebration preferences.
 
-The mole celebrates a completed Today list and otherwise stays encouraging. Saving feedback comes from the server. An interrupted request can be retried safely, and the app refreshes stale state after returning from the background without discarding unsaved edits. Offline completions are not queued.
+The mole celebrates a completed Today list and otherwise stays encouraging. Saving feedback comes from the server. An interrupted request can be retried safely, and open dashboards and Together check for changes about once a minute. Checks preserve disclosures, avoid focused forms and unsaved drafts, and re-read stale state after returning from the background. Offline completions are not queued.
 
 The vector mole occasionally blinks and breathes, nods when you complete a task, and celebrates when today's list is finished. Other poses animate their own small details. Motion pauses when the app is hidden and stops for illustrations outside the visible screen. **More → Quiet celebrations** disables animations while keeping all feedback and task actions. The device's **Reduce Motion** preference also disables motion, including JavaScript transitions. Scrolling away from a pressed control cancels its pressed appearance; tasks are only completed by an intentional activation, after the server confirms the save.
 
@@ -67,14 +67,24 @@ The original mascot SVGs live in `chores/static/mascot`. To update their prepare
 | Other / as needed | Never. Each log is a dated entry. | Taxes |
 | Selected days | A separate occurrence on each chosen day, Monday–Sunday | Water plants on Tue, Sat, Sun |
 | Sequence step | Only activated by the previous step in a run | Dry laundry, then fold laundry |
+| Every N weeks / months | Next due from actual completion | Filters every six months |
+| Yearly | One calendar date each year | Holiday cards on November 15 |
 
-A daily, weekly or monthly task stays crossed off until its period ends, then comes back as open. A one-off stays on your list until the end of the day you cross it off, so you can undo a mistake, then drops off. Its history is kept. Selected-day occurrences are independent: doing Saturday's chore doesn't complete Sunday's. Missed occurrences remain open with their original date, and **Skip this occurrence** removes just that date without points.
+A daily, weekly or monthly task stays crossed off until its period ends, then comes back as open. A one-off stays on your list until the end of the day you cross it off, so you can undo a mistake, then drops off. Its history is kept. Selected-day occurrences are independent: doing Saturday's chore doesn't complete Sunday's. Missed selected dates remain in history but appear as one task with a count of older dates. Open its details to review individual dates or **Clear the older ones**, which skips older unfinished dates without points and keeps the latest date. Completed work is preserved. **Not needed this time** skips a task date; **Restore task** is available under the matching disclosure.
+
+### Repeats, corrections and time away
+
+In the full task editor choose **Every N weeks / months**, set the interval and a first deadline. Finishing late moves the next deadline from the actual work date, so missed cycles do not stack up. Finishing early also starts the next interval from that day. **Yearly** uses a fixed month and day; February 29 uses February 28 outside leap years. Choose the first deadline on or before the desired first annual date. The next deadline appears in Today, Week or Month when it falls within that view; Manage tasks always provides access. Personal reminders support both schedules. Undo a completion from Completed or Progress to recalculate the next deadline.
+
+Open a task's details for **Did it yesterday** to record forgotten work with yesterday's date and the usual points. Today's daily tick stays separate; weekly, monthly and one-off work stays completed for its period. Selected days must actually have been scheduled yesterday. Sequences use their run's corrections because later timers depend on the original completion time. Recently taken care of in Progress offers Undo for historical corrections too.
+
+Under **More**, add inclusive **Away** dates. This pauses only your reminders, sequence nudges and evening summaries and protects your streak; tasks remain visible for your partner. Away days add no points or streak days. Remove the dates to end the pause. On a partner's board, **I took care of this** gives you credit, tells the owner when notifications are available, and lets you undo your own completion.
 
 ### Selected days and timed sequences
 
 Open a task in **Manage tasks** and choose **Repeats → Selected days**. Select any days from Monday through Sunday, plus an optional common **Due by** time. Two or three selected days give you twice- or thrice-weekly chores, including weekends. New schedules start today. Changing days replaces unfinished current/future dates while preserving past work and existing runs. Selected occurrences appear in Today when their day arrives, and in This week/This month for planning.
 
-For a sequence, edit the first real chore, such as **Wash the laundry**, and expand **After this, a little next step**. Add **Dry the laundry** with a 60-minute delay, then **Fold the laundry** with another 60-minute delay. Add more follow-ups with **Add a follow-up**. New steps inherit the first task's owner; edit them separately to reassign them. To reuse an existing chore, first set its repeat type to **Sequence step**, so it doesn't also repeat independently.
+For a sequence, edit the first real chore, such as **Wash the laundry**, and expand **After this, a little next step**. Add **Dry the laundry** with a one-hour delay, then **Fold the laundry** with another one-hour delay. Add more follow-ups with **Add a follow-up**. New steps inherit the first task's owner; edit them separately to reassign them. To reuse an existing chore, first set its repeat type to **Sequence step**, so it doesn't also repeat independently.
 
 Completing Wash at 10:00 makes Dry ready at 11:00. Completing Dry late, at 11:20, makes Fold ready at 12:20. Delays are elapsed minutes, including across midnight and daylight-saving changes. A waiting step appears in **Coming up**, and a step whose predecessor isn't finished says so. These do not count against today's progress. Open the run link to see the entire sequence. Ready times are saved on the server and survive closing the iPhone app or restarting the server.
 
@@ -83,11 +93,11 @@ Completing Wash at 10:00 makes Dry ready at 11:00. Completing Dry late, at 11:20
 - **Start another run** allows another laundry load while a previous one is waiting. Each run has a separate identifier, completions and timings.
 - **Cancel remaining steps** keeps completed work and points. Undoing a step retracts its unfinished follow-ups; undo later completed steps first to protect their work.
 - Template edits affect future runs. Existing runs retain their original names, owners, effort estimates and delays. Archive referenced tasks to preserve runs; permanent deletion requires removing sequence links and finishing or cancelling active runs first.
-- Each real step earns its own points. Enter active work in the step's hours estimate, excluding machine waiting time; the sequence group earns no extra points. Unlinked sequence steps and steps used only by one-offs are excluded from recurring assigned workload.
+- Each real step earns its own points. Enter active work in the step's minutes estimate, excluding machine waiting time; the sequence group earns no extra points. Unlinked sequence steps and steps used only by one-offs are excluded from recurring assigned workload.
 
 Ready notifications are optional and personal. Use the checkbox in the sequence editor or the button on a run page, and enable device notifications in **More**. Only opted-in people receive nudges for their own or Shared steps; a volunteer run's doer can receive its volunteer follow-ups. Turn them off in **More → Your sequence reminders**. The existing once-a-minute notification job handles delivery, with the same two-hour late-send window as other reminders. Browser refreshes cannot send notifications.
 
-Siri understands ready selected-day occurrences and sequence steps. If two missed dates or laundry loads are ready for the same task, it asks you to choose the occurrence in the app. It cannot complete a waiting or blocked step by voice. A repeated command for a completed step is safe when it still identifies the same occurrence; naming a task with another ready occurrence refers to that ready work.
+Siri understands ready selected-day occurrences and sequence steps. If multiple missed dates or laundry loads are ready for the same task, it takes the oldest ready one. Distinct chores with similar names still require clarification. It cannot complete a waiting or blocked step by voice. A repeated command for a completed step is safe when it still identifies the same occurrence; naming a task with another ready occurrence refers to that ready work.
 
 ### Due days and times
 
@@ -112,12 +122,14 @@ iOS only allows push for web apps saved to the home screen, and needs iOS 16.4 o
 
 Do this on each device you want reminders on. Push needs the real HTTPS site, so it won't work over plain-HTTP LAN testing.
 
+Reminder pages put **Morning of (9 am)**, **Evening before (6 pm)** and **An hour before** ahead of the custom settings. Weekly and monthly nudges never fire before their period opens. In **More**, opt into a personal evening summary and choose its time. It stays quiet when today is handled and during your Away dates.
+
 ### Siri
 
-Say **"Hey Siri, I did a chore"**, then name it, and Siri crosses it off and tells you how many are left today. It works through a shortcut you build once in Apple's Shortcuts app. **More → Siri** walks through it and gives you a personal voice key for each iPhone.
+Say **"Hey Siri, I did a chore"**, then name it, and Siri crosses it off and tells you how many are left today. It works through a shortcut you build once in Apple's Shortcuts app. **More → Siri** walks through it and gives you a personal voice key for each iPhone. Copy buttons are available for the key and API address; shortcut setup remains manual.
 
-- Matching is forgiving: "I did the dishes" or "took out the trash" find *Dishes* and *Trash & Recycling*. If two tasks sound alike, Siri asks which you meant and changes nothing.
-- Your own and Shared tasks come first. If you name your partner's task, Siri crosses it off anyway, since you've probably already done it, and sends your partner a "Task stolen!" notification. You get the points. If your partner has no notifications set up, Siri tells you to mention it yourself.
+- Matching is forgiving: "I did the dishes" or "took out the trash" find *Dishes* and *Trash & Recycling*. Nicknames in the task editor's **Also called** field teach Siri your phrasing. Starter phrases include walked the dog, changed the filters and tidied up; dried the laundry and put away the laundry remain distinct. If two different tasks sound alike, Siri asks which you meant and changes nothing.
+- Your own and Shared tasks come first. If you name your partner's task, Siri crosses it off anyway, since you've probably already done it, and sends your partner an "A little help" notification. You get the points. If your partner has no notifications set up, Siri tells you to mention it yourself.
 - Voice never claims a Needs Volunteer task, so claim those in the app. The app itself still only lets you cross off your own, Shared and volunteer tasks.
 - Saying the same thing twice is safe. "Undo" puts back your most recent cross-off from the last hour; undoing a stolen task sends your partner a "Never mind" notification.
 - Optional extra shortcuts send fixed words: "what's left", "undo" or "score". Name the first one **What chores do I have left today**, and Siri answers with your remaining daily chores, then anything due today, then anything overdue, matching the app's Today list. It reads up to 10 names and says how many more are in the app.
@@ -138,7 +150,7 @@ Together leads with tasks completed, points earned, and volunteer contributions 
 
 ### Changing your password
 
-Tap your initial in the top-right corner, then **Change password**.
+Tap your initial in the top-right corner, then **Account & password**.
 
 ---
 
@@ -153,7 +165,7 @@ The **admin** account is kept separate for technical settings only (see [The adm
 All 109 cards (plus any you add) are in one table. For each row you can change:
 
 - **Owner:** Chris, Andrea, Shared, or Needs Volunteer.
-- **Frequency:** Daily, Weekly, Monthly, One-off, As needed, Selected days, or Sequence step. Choose selected days in the full editor before using that frequency in the grid. Changing frequency clears due settings that no longer apply.
+- **Frequency:** Daily, Weekly, Monthly, One-off, As needed, Selected days, Sequence step, Every N weeks / months, or Yearly. Configure selected days, interval settings or yearly dates in the full editor before using those schedules in the grid. Changing frequency clears due settings that no longer apply.
 - **Hours / mo:** your estimate of total monthly effort, including the noticing and planning, not just the doing.
 - **Include:** uncheck to archive a task without losing its history. Archived tasks disappear from task lists.
 
@@ -161,15 +173,17 @@ Change as many rows as you like, then press **Save changes**. The save bar count
 
 ### Editing a card
 
-Click a task's name to edit its name, ownership, schedule, due setting, "What it covers" text, and **What done looks like** notes. Group and code sit in Additional details. Wide desktops open this editor beside the table; narrower screens use a full page. Save or discard table changes before opening the side editor, and close the editor before changing table assignments. Saving returns to the original filters.
+Click a task's name to edit its name, nicknames, ownership, schedule, due setting, "What it covers" text, and **What done looks like** notes. Group and code sit in Additional details. Wide desktops open this editor beside the table; narrower screens use a full page. Save or discard table changes before opening the side editor, and close the editor before changing table assignments. Saving returns to the original filters.
 
 **Delete task permanently** removes a task *and* its history for good. To keep the history, uncheck Include in task lists and save instead.
 
 ### Adding tasks
 
-**+ New task** suggests the next free code in the group you pick (H28, O26, …). This replaces the blank cards at the end of the deck.
+For a quick personal chore, use **Add a one-off for me** on My tasks. It belongs to you and has an optional due date. Siri also accepts "add a task book the plumber". For full configuration, **+ New task** suggests the next free code in the group you pick (H28, O26, …). This replaces the blank cards at the end of the deck.
 
 ### Importing the spreadsheet
+
+CSV exports also preserve Also Called, Minutes Each, Repeat Every, Repeat Unit, First Due, Year Month and Year Day, plus selected days and sequence links. Blank import cells keep existing values.
 
 If you filled in `Household_Tasks.xlsx`, go to **Manage → Import spreadsheet** and upload it. Rows are matched by **Code**, and the importer reads Owner, Hours / Month, Notes, and also Frequency, Active, Due Date, Due Weekday, Due Day and Due Time if those columns are present. Blank cells leave existing values alone. The same thing works from the command line: `python manage.py import Household_Tasks.xlsx`.
 
@@ -179,7 +193,7 @@ If you filled in `Household_Tasks.xlsx`, go to **Manage → Import spreadsheet**
 
 Log in as **admin** and you land on **Admin** (`/admin/`). Neither member account sees it in the navigation, and every route under `/admin/` refuses non-admin users, including any routes added in future. It holds:
 
-- **System:** app and schema version, Python, Flask and SQLite versions, database location and size, row counts, and the current configuration (read-only; settings live in the env file).
+- **System:** app and schema version, runtime versions, database location and size, current settings path, last successful backup, last notification job, updater last check, and registered notification devices. These timestamps begin when the updated jobs first run. Windows reports its next updater check; Linux updates remain manual. The unmatched Siri phrases list can add a phrase directly as a task nickname.
 - **Users:** change display names and colours, and set a new password for anyone who's locked out. The three accounts are fixed: there's no sign-up page.
 - **Feed corrections:** a *Remove* link on each household-feed entry in Together, for cross-offs made by mistake.
 
@@ -202,16 +216,16 @@ The game layer is deliberately light. It's there to make finishing things feel g
 **Points per cross-off.** Roughly one point per five minutes of estimated effort:
 
 ```
-minutes per occurrence = hours_month × 60 ÷ occurrences per month
+minutes per occurrence = minutes_each, when entered; otherwise hours_month × 60 ÷ occurrences per month
                          (daily 30.44, weekly 4.35, monthly 1, once 1, other 1)
 points = max(1, round(minutes ÷ 5))
 ```
 
-So a daily task estimated at 15 h/month is about 30 minutes a day, which earns 6 points. Tasks without an hours estimate get a flat 2 (daily), 5 (weekly), 10 (monthly) or 8 (once or other). A **Needs Volunteer** task earns 1.5× (rounded up).
+So a daily task estimated at 15 h/month is about 30 minutes a day, which earns 6 points. Minutes each time uses one point per five active minutes, with a minimum of one; monthly estimates are converted by the repeat frequency. Tasks without an estimate get a flat 2 (daily), 5 (weekly), 10 (monthly) or 8 (once, other or interval), or 10 (yearly). A **Needs Volunteer** task earns 1.5× (rounded up).
 
 Points are **saved at the moment you cross something off**. If you later change the hours or re-deal a task, past scores don't move.
 
-**Streak.** The number of consecutive days on which *every* daily task you hold (solo or shared) got done. Today's unfinished list doesn't break your streak; only a finished day adds to it. If you hold no daily tasks your streak stays at 0.
+**Streak.** Counts handled days of your current Daily and Selected days routines, solo or Shared. Today's unfinished list does not break it. Not needed, days without a scheduled routine and Away dates do not break the streak or award extra streak days. A partially excused day counts when the remaining required work is completed. History uses current assignments and selected days; it is not an assignment audit log.
 
 **Badges** (recalculated live):
 
@@ -223,6 +237,8 @@ Points are **saved at the moment you cross something off**. If you later change 
 | 🔥 On a roll / ⚡ Unstoppable / 🏆 Legend | 3 / 7 / 30-day streak |
 | 🙋 Volunteer | Picked up a Needs Volunteer task this week |
 | 🦸 Household hero | 5+ volunteer pickups this month |
+
+**Minutes each time** in the full editor is an alternative to monthly hours. Enter active work, including planning, while excluding machine waiting. The grid continues to show the resulting monthly estimate; editing those hours switches back to a monthly estimate. New sequence steps accept minutes and their delays accept minutes, hours or days.
 
 **Assigned effort** in Together and Manage tasks is each person's own hours plus half of all Shared hours, not counting one-offs. Tasks without an estimate do not contribute hours; Manage tasks calls out missing estimates. These figures support the spreadsheet's "fair, not identical" discussion.
 
@@ -535,9 +551,9 @@ After pulling a version with schema changes, run `python manage.py migrate`.
 ## 12. Known limits and ideas
 
 - **"Each of you" cards are one shared tick.** Self-Care and similar cards are meant to be held by each person for themselves, but as *Shared* tasks one tick covers both. If that matters, add a personal copy for each person (for example C22-C for Chris and C22-A for Andrea) and delete the shared one.
-- **Streaks use today's assignments.** If a daily task is re-dealt, past days are judged against the new assignment.
+- **Streaks use today's assignments and schedule.** Re-dealing a routine or changing selected days can change the historical streak.
 - **The login lockout is in memory** and resets when the service restarts. That's fine for a two-person household.
-- **Reminders are per task and opt-in** (see Goals). There's no "you have 3 left at 8 pm" summary. It would be a small addition to `reminders.py`.
+- **Reminders are personal and opt-in.** More also offers an evening summary at a household-time-zone clock time, once per day when tasks remain. It pauses during Away dates and needs notifications enabled on a device.
 - **Each reminder fires once per occurrence.** It doesn't repeat until the task is done. Add several reminders if you want more than one nudge.
 - **Finished one-offs stay in the Manage grid** so their history is kept. Delete or turn them off to tidy up.
 - **Logging out doesn't turn off notifications on that device.** Use **Turn off** first. If someone else logs in and enables them, the device moves to that person.

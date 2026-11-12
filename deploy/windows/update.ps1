@@ -43,6 +43,19 @@ function Write-Status($message) {
         Write-Log $message
         Set-Content -Path $Status -Value $message
     }
+    Publish-Status $message
+}
+
+# Display-only copy in the data folder. Privileged updater decisions always
+# read their protected files under $State, never this app-writable report.
+function Publish-Status($message) {
+    try {
+        if (-not (Test-Path -LiteralPath $Data)) { return }
+        $report = @{ checked_at = [DateTime]::UtcNow.ToString("o"); status = [string]$message; deployed = (Read-Value $Deployed) }
+        $report | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Data "update-status.json") -Encoding UTF8
+    } catch {
+        Write-Log "Could not publish the display-only updater status."
+    }
 }
 
 function Get-AppTasks {
@@ -74,7 +87,7 @@ function Invoke-Install($folder) {
     $err = Join-Path $State "install-err.txt"
     $arguments = @("-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "`"$script`"")
     $process = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -Wait -PassThru `
-        -RedirectStandardOutput $out -RedirectStandardError $err
+        -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err
     foreach ($file in $out, $err) {
         if ((Get-Item $file).Length -gt 0) { Add-Content -Path $Log -Value (Get-Content $file) }
     }
@@ -92,11 +105,13 @@ if ((Test-Path $Log) -and (Get-Item $Log).Length -gt 1MB) { Move-Item -Path $Log
 # Nothing here touches the running app, so any problem just means trying again next time.
 try {
     if (-not (Test-Path $Db)) { throw "No database at $Db. Run install.ps1 by hand first." }
+    Publish-Status "Checking for updates."
 
     $sha = (Invoke-RestMethod "$Api/commits/main" -UserAgent $Agent -TimeoutSec 30).sha
     if ($sha -notmatch '^[0-9a-f]{40}$') { throw "GitHub returned an unexpected commit id." }
     $short = $sha.Substring(0, 7)
-    if ($sha -eq (Read-Value $Deployed) -or $sha -eq (Read-Value $Failed)) { exit 0 }
+    if ($sha -eq (Read-Value $Deployed)) { Write-Status "Up to date at $short."; exit 0 }
+    if ($sha -eq (Read-Value $Failed)) { Write-Status "Skipping $short after a previous failed update."; exit 0 }
 
     $runs = @((Invoke-RestMethod "$Api/actions/workflows/tests.yml/runs?head_sha=$sha&branch=main&event=push&per_page=1" `
         -UserAgent $Agent -TimeoutSec 30).workflow_runs)
@@ -122,7 +137,7 @@ try {
 }
 
 Write-Log "Updating to $short."
-Set-Content -Path $Status -Value "Updating to $short."
+Write-Status "Updating to $short."
 
 # Save what's needed to go back. The app is stopped first so the copy of the database is final.
 try {
@@ -138,7 +153,7 @@ try {
 } catch {
     Write-Log "Update to $short abandoned, nothing was changed: $($_.Exception.Message)"
     Set-Content -Path $Failed -Value $sha
-    Set-Content -Path $Status -Value "Update to $short abandoned; running the previous version."
+    Write-Status "Update to $short abandoned; running the previous version."
     Remove-Item -Path $Work -Recurse -Force -ErrorAction SilentlyContinue
     try { Start-App } catch { Write-Log "COULD NOT RESTART THE APP: $($_.Exception.Message)" }
     exit 1
@@ -152,7 +167,7 @@ if ($installed) {
     Remove-Item -Path $Failed -Force -ErrorAction SilentlyContinue
     Remove-Item -Path $Work -Recurse -Force
     Write-Log "Updated to $short."
-    Set-Content -Path $Status -Value "Updated to $short."
+    Write-Status "Updated to $short."
     exit 0
 }
 
@@ -173,9 +188,9 @@ Remove-Item -Path $Work -Recurse -Force -ErrorAction SilentlyContinue
 
 if ($restored) {
     Write-Log "Restored the previous version. Skipping $short until a newer commit arrives."
-    Set-Content -Path $Status -Value "Update to $short failed; running the previous version."
+    Write-Status "Update to $short failed; running the previous version."
     exit 1
 }
 Write-Log "RESTORE FAILED: the app is probably down. The saved database is $DbCopy and the saved code is $Previous."
-Set-Content -Path $Status -Value "Update to $short failed and the restore failed too."
+Write-Status "Update to $short failed and the restore failed too."
 exit 2

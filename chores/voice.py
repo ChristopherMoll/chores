@@ -11,7 +11,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 
-from . import logic, periods, scheduling
+from . import logic, periods, scheduling, planning
 from .db import get_db
 
 MAX_PHRASE = 300
@@ -22,9 +22,9 @@ MISSES_KEPT_DAYS = 30
 
 # Words that carry no meaning for picking a task.
 FILLER = frozenset("""
-    a all already am an and are as at away be been chore chores complete completed cross crossed did do
+    a all already am an and are as at be been chore chores complete completed cross crossed did do
     done finish finished for got handled have has i im ive is it just made make mark my of off our out
-    please put some take taken task tasks that the this to today took up we with
+    please some take taken task tasks that the this to today took up we with
 """.split())
 
 UNDO = re.compile(r"\b(undo|take (that|it) back|scratch that|oops|cancel that)\b")
@@ -76,7 +76,7 @@ def revoke(user_id, token_id):
 
 def recent_misses(limit=50):
     return get_db().execute(
-        "SELECT m.phrase, m.heard_at, u.display_name FROM voice_misses m JOIN users u ON u.id = m.user_id"
+        "SELECT m.id, m.phrase, m.heard_at, u.display_name FROM voice_misses m JOIN users u ON u.id = m.user_id"
         " ORDER BY m.id DESC LIMIT ?", (limit,)).fetchall()
 
 
@@ -95,6 +95,10 @@ def normalize(text):
 
 
 def _stem(word):
+    if word in ("dried", "drying"):
+        return "dry"
+    if word == "tidied":
+        return "tidy"
     for suffix in ("ing", "ed", "es", "s"):
         if word.endswith(suffix) and len(word) - len(suffix) >= 3:
             word = word[: -len(suffix)]
@@ -173,6 +177,15 @@ def handle(user, text):
     said = normalize(phrase)
     if not said:
         return _reply(False, "none", "I didn't catch that. Try saying the chore's name.")
+    if said in ("add", "add task", "add a task", "add chore", "add a chore"):
+        return _reply(False, "add_name", "What should I add? Say add a task followed by its name.")
+    if match := re.match(r"^(?:add(?: a)? (?:chore|task)|add)\s+(.+)$", phrase, re.I):
+        name = match[1].strip()
+        try:
+            task_id = planning.quick_add(user, name)
+        except (ValueError, PermissionError) as e:
+            return _reply(False, "add_error", str(e))
+        return _reply(True, "added", f"Added {name} to your One-off list.", task=name, task_id=task_id)
     if UNDO.search(said):
         return _undo(user)
     if SCORE.search(said):
@@ -188,7 +201,7 @@ def _reply(ok, action, speech, **extra):
 
 def _complete(user, phrase):
     tasks = get_db().execute("SELECT * FROM tasks WHERE active = 1").fetchall()
-    ranked = sorted(((score(phrase, t["name"]), t) for t in tasks), key=lambda st: st[0], reverse=True)
+    ranked = sorted(((max(score(phrase, name) for name in [t["name"], *t["aliases"].splitlines()]), t) for t in tasks), key=lambda st: st[0], reverse=True)
     ranked = [(s, t) for s, t in ranked if s >= MATCH_THRESHOLD]
     mine = [(s, t) for s, t in ranked if t["owner"] in (user["username"], logic.SHARED)]
     pool = mine or ranked   # your own tasks win; otherwise anyone's
@@ -203,7 +216,7 @@ def _complete(user, phrase):
                           "Say the full name and I'll cross it off.", options=options, heard=phrase)
         task = close[0]
         if task["owner"] == logic.VOLUNTEER:
-            return _reply(False, "volunteer", f"{task['name']} is up for grabs. Claim it in the app first.")
+            return _reply(False, "volunteer", f"{task['name']} is up for grabs. Take care of it from the Together list in the app.")
         return _cross_off(user, task)
     _record_miss(user["id"], phrase)
     return _reply(False, "no_match", f"I couldn't find a chore called {phrase}. Try its name from your list.")
@@ -215,18 +228,14 @@ def _completion(task):
         return scheduling.completion(occurrence)
     return get_db().execute(
         "SELECT c.*, u.display_name AS doer FROM completions c JOIN users u ON u.id = c.user_id"
-        " WHERE c.task_id = ? AND c.period_key = ?", (task["id"], periods.period_key(task["frequency"]))).fetchone()
+        " WHERE c.task_id = ? AND c.period_key = ?", (task["id"], periods.task_key(task))).fetchone()
 
 
 def _cross_off(user, task):
     try:
-        occurrence = scheduling.resolve(task)
-        if task["frequency"] not in ("selected", "sequence"):
-            choices = scheduling.candidates(task["id"])
-            if len(choices) > 1 or (choices and choices[0]["occurrence_key"] != periods.period_key(task["frequency"]) and not _completion(task)):
-                raise ValueError("More than one load could match. Choose the run in the app.")
-            if choices:
-                occurrence = scheduling.get_occurrence(choices[0]["id"])
+        choices = scheduling.candidates(task["id"])
+        occurrence = scheduling.get_occurrence(choices[0]["id"]) if choices else scheduling.resolve(task)
+        key = occurrence["occurrence_key"] if occurrence else periods.task_key(task)
         before = scheduling.completion(occurrence) if occurrence else _completion(task)
     except ValueError as e:
         return _reply(False, "choose_occurrence", str(e))
@@ -237,24 +246,27 @@ def _cross_off(user, task):
     owner = _other_owner(user, effective_task)
     # Explicit state: a retried request can't undo it.
     try:
-        logic.toggle(user, task, desired_done=True, steal=owner is not None, occurrence_id=occurrence["id"] if occurrence else None)
+        logic.toggle(user, task, desired_done=True, steal=owner is not None, occurrence_id=occurrence["id"] if occurrence else None, expected_period=key)
     except (ValueError, PermissionError) as e:
         return _reply(False, "not_ready", str(e))
-    after = scheduling.completion(occurrence) if occurrence else _completion(task)
+    after = get_db().execute("SELECT c.*,u.display_name AS doer FROM completions c JOIN users u ON u.id=c.user_id WHERE task_id=? AND period_key=?", (task["id"], key)).fetchone()
     if after and after["user_id"] != user["id"]:   # someone else got there at the same moment
         return _reply(True, "already_done", f"{after['doer']} already crossed off {task['name']}.", task=task["name"])
     points = after["points"] if after else 0
     left = len(logic.task_views(logic.dashboard(user["username"]))["today"]["open"])
     tail = "That's everything for today." if not left else f"{left} left today."
     head = f"Crossed off {task['name']}."
-    active = scheduling.get_occurrence(occurrence["id"]) if occurrence else scheduling.resolve(task)
+    active = scheduling.get_occurrence(occurrence["id"]) if occurrence else get_db().execute("SELECT * FROM task_occurrences WHERE task_id=? AND occurrence_key=?", (task["id"], key)).fetchone()
+    if occurrence and len(choices) > 1:
+        chosen = scheduling.local(occurrence["ready_at"])
+        head += " I used the oldest ready " + ("load" if occurrence["run_id"] else "date") + ", " + periods.human_date(chosen.date()) + "."
     if active and active["run_id"]:
         following = get_db().execute("SELECT * FROM task_occurrences WHERE run_id=? AND position=?", (active["run_id"], active["position"] + 1)).fetchone()
         if following and following["ready_at"]:
             at = scheduling.local(following["ready_at"])
             tail += " " + scheduling.occurrence_task(following)["name"] + " will be ready " + at.strftime('%A ') + periods.format_time(at.time()) + "."
     if owner:
-        sent = _notify(owner, task, "Task stolen!", f"{user['display_name']} crossed off {task['name']} for you.")
+        sent = notify_cover(user, effective_task, after)
         head = (f"Crossed off {task['name']} for {owner['display_name']}, and I've let {owner['display_name']} know."
                 if sent else f"Crossed off {task['name']} for {owner['display_name']}. I couldn't send "
                 f"{owner['display_name']} a notification, so you might mention it.")
@@ -268,6 +280,16 @@ def _other_owner(user, task):
     if task["owner"] in (user["username"], logic.SHARED, logic.VOLUNTEER):
         return None
     return logic.user_by_name(task["owner"])
+
+
+def notify_cover(user, task, completion):
+    """One owner notification per completion, including overlapping app/voice requests."""
+    owner = _other_owner(user, task)
+    if not owner or not completion or completion["user_id"] != user["id"]:
+        return False
+    claimed = get_db().execute("INSERT OR IGNORE INTO cover_notices VALUES (?)", (completion["id"],)).rowcount
+    get_db().commit()
+    return bool(claimed and _notify(owner, task, "A little help", f"{user['display_name']} took care of {task['name']} for you."))
 
 
 def _notify(owner, task, title, body):
@@ -284,14 +306,14 @@ def _notify(owner, task, title, body):
 
 def _undo(user):
     row = get_db().execute(
-        "SELECT c.done_at, c.period_key, o.id AS occurrence_id, t.* FROM completions c JOIN tasks t ON t.id = c.task_id"
+        "SELECT c.id AS completion_id,c.done_at, c.period_key, o.id AS occurrence_id, t.* FROM completions c JOIN tasks t ON t.id = c.task_id"
         " LEFT JOIN task_occurrences o ON o.task_id=c.task_id AND o.occurrence_key=c.period_key"
         " WHERE c.user_id = ? ORDER BY c.done_at DESC, c.id DESC LIMIT 1", (user["id"],)).fetchone()
     recent = row and (scheduling.now_utc() if row["occurrence_id"] else datetime.now(timezone.utc)) - datetime.fromisoformat(row["done_at"]) <= UNDO_WINDOW
-    if not recent or (not row["occurrence_id"] and row["period_key"] != periods.period_key(row["frequency"])):
+    if not recent or (not row["occurrence_id"] and row["frequency"] not in ("interval", "yearly") and row["period_key"] != periods.task_key(row)):
         return _reply(False, "nothing_to_undo", "There's nothing from the last hour to undo.")
     try:
-        logic.toggle(user, row, desired_done=False, occurrence_id=row["occurrence_id"])
+        logic.toggle(user, row, desired_done=False, occurrence_id=row["occurrence_id"], period_override=row["period_key"])
     except (ValueError, PermissionError) as e:
         return _reply(False, "cannot_undo", str(e))
     owner = _other_owner(user, row)

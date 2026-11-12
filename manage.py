@@ -18,7 +18,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from chores import create_app, db, push, reminders
+from chores import create_app, db, push, reminders, operations, __version__
 from chores.auth import hash_password
 
 USERS = [  # username, display name, role, colour
@@ -67,12 +67,19 @@ def cmd_migrate(app, args):
         conn = db.get_db()
         db.init_schema(conn)
         push.public_key()
+        operations.record(migration_at=operations.timestamp(), migration_version=__version__)
         print("Schema version", conn.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0])
 
 
 def cmd_notify(app, args):
     with app.app_context():
-        sent = reminders.run_due()
+        operations.record(notify_started_at=operations.timestamp())
+        try:
+            sent = reminders.run_due()
+        except Exception as e:
+            operations.record(notify_error=type(e).__name__, notify_finished_at=operations.timestamp())
+            raise
+        operations.record(notify_finished_at=operations.timestamp(), notify_error="", notify_sent=sent)
     if sent:     # this runs every minute, so stay quiet when there's nothing to report
         print(f"Sent {sent} reminder(s).")
 
@@ -113,6 +120,8 @@ def cmd_backup(app, args):
     with sqlite3.connect(dest) as d:
         src.backup(d)          # consistent snapshot even while the app is writing
     src.close()
+    with app.app_context():
+        operations.record(backup_at=operations.timestamp(), backup_file=str(dest.resolve()))
     keep = sorted(out.glob("chores-*.sqlite3"))[:-args.keep] if args.keep else []
     for old in keep:
         old.unlink()
@@ -142,6 +151,7 @@ def main():
     early, _ = common.parse_known_args()
     if early.env_file:
         load_env_file(early.env_file)
+        os.environ["CHORES_ENV_FILE"] = str(Path(early.env_file).resolve())
     if early.log_file:
         sys.stdout = sys.stderr = open(early.log_file, "a", encoding="utf-8", buffering=1)
 

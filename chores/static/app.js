@@ -8,6 +8,7 @@
   let toastTimer;
   let savingTask = false;
   let taskRevision = 0;
+  let lastLiveCheck = Date.now();
   let keyboardInteraction = false;
   document.addEventListener("keydown", () => { keyboardInteraction = true; });
   document.addEventListener("pointerdown", () => { keyboardInteraction = false; });
@@ -99,7 +100,10 @@
     const expanded = all(".task-body[open]").map(el => el.closest(".task").dataset.rowKey);
     const closedRuns = all("[data-run-group]:not([open])").map(el => el.dataset.runGroup);
     const openDisclosures = all(".completed-group[open]").map(el => el.dataset.disclosure);
-    ["tasks-region", "volunteer-region", "sequence-run-region", "sequence-heading", "sequence-actions", "occurrence-region"].forEach(id => {
+    const focused = document.activeElement;
+    const focusRow = focused?.closest(".task")?.dataset.rowKey;
+    const focusDisclosure = focused?.closest("[data-disclosure]")?.dataset.disclosure;
+    ["tasks-region", "volunteer-region", "sequence-run-region", "sequence-heading", "sequence-actions", "occurrence-region", "household-summary", "household-feed"].forEach(id => {
       const current = document.getElementById(id), next = page.getElementById(id);
       if (current && next) { current.replaceWith(next); paint(next); setupForms(next); }
     });
@@ -107,15 +111,20 @@
     closedRuns.forEach(id => all('[data-run-group="' + id + '"]').forEach(el => el.removeAttribute("open")));
     openDisclosures.forEach(key => query('[data-disclosure="' + key + '"]')?.setAttribute("open", ""));
     all("[data-view-count]", page).forEach(next => all('[data-view-count="' + next.dataset.viewCount + '"]').forEach(el => { el.textContent = next.textContent; }));
+    const hero = query("#hero-mole", page), lede = query("#hero-lede", page);
+    if (hero) window.MoleMotion?.react(false, hero.dataset.pose === "celebrate");
+    if (lede && query("#hero-lede")) query("#hero-lede").textContent = lede.textContent;
+    if (focusRow) document.getElementById(focusRow)?.querySelector(".task-body > summary")?.focus({preventScroll:true});
+    else if (focusDisclosure) query('[data-disclosure="' + focusDisclosure + '"] > summary')?.focus({preventScroll:true});
     window.MoleMotion?.restore(motion);
   }
 
-  async function setTask(url, desired, taskId, period, occurrenceId = null, early = false) {
+  async function setTask(url, desired, taskId, period, occurrenceId = null, early = false, completionId = null, cover = false) {
     if (savingTask) return;
     if (!navigator.onLine) { toast("You're offline. Reconnect, then try again.", "error"); return; }
     savingTask = true;
     taskRevision++;
-    const row = document.getElementById(occurrenceId ? 'occurrence-' + occurrenceId : 'task-' + taskId);
+    const row = completionId ? query('[data-completion-id="' + completionId + '"]') : document.getElementById(occurrenceId ? 'occurrence-' + occurrenceId : 'task-' + taskId);
     const nextIndex = row ? all(".tasks > .task:not(.done)").indexOf(row) : 0;
     const expandedIds = all(".task-body[open]").map(el => el.closest(".task").dataset.rowKey);
     const openDisclosures = all(".completed-group[open]").map(el => el.dataset.disclosure);
@@ -127,6 +136,9 @@
     if (period) data.set("period", period);
     if (occurrenceId) data.set("occurrence_id", occurrenceId);
     if (early) data.set("early", "1");
+    if (completionId) data.set("completion_id", completionId);
+    if (cover) data.set("cover", "1");
+    data.set("board_user", query(".dashboard")?.dataset.username || "");
     data.set("view", query(".dashboard")?.dataset.view || "today");
     data.set("return_to", location.pathname + location.search);
     data.set("surface", query("#volunteer-region") ? "together" : "tasks");
@@ -165,7 +177,7 @@
         const ownCompletion = result.can_undo;
         let message = ownCompletion ? (allDone && taskRegion ? "Today's list is taken care of. Enjoy the space you made." : "One more thing taken care of. +" + result.points + " points.") : result.by + " already took care of this. Thank you both.";
         if (result.next_step) message += " " + result.next_step.name + " will be ready " + result.next_step.at + ".";
-        toast(message, allDone && taskRegion ? "win" : "", ownCompletion ? () => setTask(url, false, taskId, period, result.occurrence_id || occurrenceId) : null);
+        toast(message, allDone && taskRegion ? "win" : "", ownCompletion ? () => setTask(url, false, taskId, period, result.occurrence_id || occurrenceId, false, result.completion_id) : null);
       } else {
         toast("Task restored to your list.");
       }
@@ -178,7 +190,7 @@
       }
       await refreshTogether();
     } catch (error) {
-      const retry = error.refresh ? () => location.reload() : error.noRetry ? null : () => setTask(url, desired, taskId, period, occurrenceId, early);
+      const retry = error.refresh ? () => location.reload() : error.noRetry ? null : () => setTask(url, desired, taskId, period, occurrenceId, early, completionId, cover);
       toast(error.name === "AbortError" || error instanceof TypeError ? "Couldn't confirm the save. It's safe to try again." : error.message, "error", retry, error.refresh ? "Refresh list" : "Try again");
     } finally {
       clearTimeout(timeout);
@@ -191,7 +203,7 @@
     const form = event.target;
     if (!form.classList.contains("tick-form")) return;
     event.preventDefault();
-    setTask(form.action, query('[name="done"]', form).value === "1", form.closest(".task").dataset.task, query('[name="period"]', form).value, query('[name="occurrence_id"]', form)?.value, query('[name="early"]', form)?.value === "1");
+    setTask(form.action, query('[name="done"]', form).value === "1", form.closest(".task").dataset.task, query('[name="period"]', form).value, query('[name="occurrence_id"]', form)?.value, query('[name="early"]', form)?.value === "1", query('[name="completion_id"]', form)?.value, query('[name="cover"]', form)?.value === "1");
   });
 
   document.addEventListener("click", event => {
@@ -200,7 +212,27 @@
     all("details.menu[open], details.tools-menu[open]").forEach(menu => { if (!menu.contains(event.target)) menu.open = false; });
   });
 
+  document.addEventListener("click", async event => {
+    const button = event.target.closest("[data-copy-from]");
+    if (!button) return;
+    const source = document.getElementById(button.dataset.copyFrom);
+    const value = source?.value ?? source?.textContent;
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value.trim());
+      toast("Copied. Ready to paste into Shortcuts.");
+    } catch (_) {
+      if (source?.select) { source.focus(); source.select(); }
+      else if (source) { const range = document.createRange(); range.selectNodeContents(source); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); }
+      toast("Selected for copying. Use your device's Copy command.");
+    }
+  });
+
   function setupForms(scope = document) {
+    all("[data-effort-switch]", scope).forEach(select => {
+      const sync = () => all("[data-effort-for]", select.closest("form")).forEach(el => { el.hidden = el.dataset.effortFor !== select.value; });
+      select.addEventListener("change", sync); sync();
+    });
     all("select[data-due-switch]", scope).forEach(select => {
       const form = select.closest("form");
       const sync = () => {
@@ -237,8 +269,12 @@
       });
     });
     all("[data-track-changes]", scope).forEach(form => {
-      form.addEventListener("input", () => form.classList.add("dirty"));
-      form.addEventListener("change", () => form.classList.add("dirty"));
+      const fields = () => all("input,select,textarea", form).filter(input => input.type !== "hidden");
+      const value = input => ["checkbox", "radio"].includes(input.type) ? input.checked : input.value;
+      const initial = new Map(fields().map(input => [input, value(input)]));
+      const changed = () => { const current = fields(); form.classList.toggle("dirty", current.length !== initial.size || current.some(input => value(input) !== initial.get(input))); };
+      form.addEventListener("input", changed);
+      form.addEventListener("change", changed);
       form.addEventListener("submit", () => form.classList.remove("dirty"));
     });
   }
@@ -282,15 +318,26 @@
         const current = state(row, false);
         row.classList.toggle("off", !current.active);
         query(".owner-sel", row).dataset.owner = current.owner;
-        tasks[row.dataset.taskId] = current;
+        const originalTask = tasks[row.dataset.taskId];
+        tasks[row.dataset.taskId] = { ...originalTask, ...current,
+          minutes_each: current.hours === state(row, true).hours ? originalTask.minutes_each : null };
       });
       const recurringSteps = new Set();
       Object.entries(sequenceLinks).forEach(([rootId, steps]) => {
         if (tasks[rootId]?.active && tasks[rootId].frequency !== "once") steps.forEach(id => recurringSteps.add(String(id)));
       });
+      const occurrences = item => {
+        if (item.frequency === "selected") return (item.selected_days || "").split(",").filter(Boolean).length * 4.35;
+        if (item.frequency === "interval") return (item.repeat_unit === "weeks" ? 4.35 : 1) / item.repeat_every;
+        return { daily: 30.44, weekly: 4.35, yearly: 1 / 12 }[item.frequency] || 1;
+      };
       Object.entries(tasks).forEach(([id, item]) => {
         if (!item.active || item.frequency === "once" || (item.frequency === "sequence" && !recurringSteps.has(id))) return;
-        Object.keys(totals).forEach(name => { if (item.owner === name || item.owner === "shared") totals[name] += item.hours * (item.owner === "shared" ? 0.5 : 1); });
+        let count = occurrences(item);
+        if (item.frequency === "sequence") count = Object.entries(sequenceLinks).reduce((sum, [rootId, steps]) =>
+          sum + (tasks[rootId]?.active && tasks[rootId].frequency !== "once" && steps.some(step => String(step) === id) ? occurrences(tasks[rootId]) : 0), 0);
+        const hours = item.minutes_each == null ? item.hours : item.minutes_each * count / 60;
+        Object.keys(totals).forEach(name => { if (item.owner === name || item.owner === "shared") totals[name] += hours * (item.owner === "shared" ? 0.5 : 1); });
       });
       Object.entries(totals).forEach(([name, total]) => { const el = query('[data-load-for="' + name + '"]'); if (el) el.textContent = Math.max(0, total).toLocaleString(undefined, { maximumFractionDigits: 1 }); });
       query("[data-load-caption]").textContent = changed ? "Preview after saving · estimated hours per month" : "Estimated hours per month · half of shared work each";
@@ -405,7 +452,9 @@
   // Recheck the server when a waiting step becomes ready, including in the Home Screen app.
   setInterval(() => {
     if (document.hidden || savingTask || !navigator.onLine || query("form.dirty") || document.activeElement?.closest("form")) return;
-    if (all("[data-ready-at]").some(el => Date.parse(el.dataset.readyAt) <= Date.now())) {
+    const livePage = query(".dashboard,#household-summary");
+    if (all("[data-ready-at]").some(el => Date.parse(el.dataset.readyAt) <= Date.now()) || (livePage && Date.now() - lastLiveCheck >= 60000)) {
+      lastLiveCheck = Date.now();
       refreshScheduledRegions(true).catch(() => { needsRefresh = true; });
     }
   }, 30000);

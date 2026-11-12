@@ -1,11 +1,12 @@
-{% from '_macros.html' import task_row, mole with context %}
-{% set rows = dash.grabs.daily + dash.grabs.weekly + dash.grabs.monthly + dash.grabs.once + dash.grabs.other + dash.grabs.selected + dash.grabs.sequence %}
-{% set unfinished = rows|rejectattr('done')|list %}
+{% from '_macros.html' import task_row, task_rows, mole with context %}
+{% set rows = dash.grabs_rows %}
+{% set unfinished = rows|rejectattr('done')|rejectattr('skipped')|list %}
 {% set open_rows = unfinished|rejectattr('waiting')|rejectattr('blocked')|list %}
 {% set waiting_rows = unfinished|selectattr('waiting')|list + unfinished|selectattr('blocked')|list %}
 <section class="card volunteer-card">
   <header class="mole-note">{{ mole('suggestion') }}<div><h2>A little extra help</h2><p class="muted small">{{ open_rows|length }} open · Take care of one when you have room. Earn 50% bonus points.</p></div></header>
-  {% if open_rows %}<ul class="tasks">{% for r in open_rows %}{{ task_row(r, g.user.role == 'member', g.user, 'grab') }}{% endfor %}</ul>{% else %}<p class="empty muted">Everything here is taken care of. Thank you.</p>{% endif %}
+  {% if open_rows %}{{ task_rows(open_rows, g.user.role == 'member', g.user) }}{% else %}<p class="empty muted">Everything here is taken care of. Thank you.</p>{% endif %}
   {% if waiting_rows %}<details class="completed-group" data-disclosure="volunteer-upcoming"><summary>Coming up <span>{{ waiting_rows|length }}</span></summary><ul class="tasks">{% for r in waiting_rows %}{{ task_row(r, g.user.role == 'member', g.user, 'grab') }}{% endfor %}</ul></details>{% endif %}
   {% set done_rows = rows|selectattr('done')|list %}{% if done_rows %}<details class="completed-group" data-disclosure="volunteer-completed"><summary>Completed <span>{{ done_rows|length }}</span><span class="completed-hint">Review &amp; undo</span></summary><ul class="tasks">{% for r in done_rows %}{{ task_row(r, g.user.role == 'member', g.user, 'grab') }}{% endfor %}</ul></details>{% endif %}
+  {% set skipped_rows = rows|selectattr('skipped')|list %}{% if skipped_rows %}<details class="completed-group" data-disclosure="volunteer-skipped"><summary>Not needed this time <span>{{ skipped_rows|length }}</span></summary><ul class="tasks">{% for r in skipped_rows %}{{ task_row(r, g.user.role == 'member', g.user, 'grab') }}{% endfor %}</ul></details>{% endif %}
 </section>

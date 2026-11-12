@@ -9,7 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import auth, db, logic, periods, mascots
 
-__version__ = "1.8.0"
+__version__ = "1.9.0"
 
 
 def _env_bool(name, default):
@@ -37,6 +37,7 @@ def create_app(test_config=None):
         TIMEZONE=os.environ.get("CHORES_TIMEZONE", "America/New_York"),
         WEEK_START=int(os.environ.get("CHORES_WEEK_START", "0")),     # 0 = Monday … 6 = Sunday
         VAPID_SUBJECT=os.environ.get("CHORES_VAPID_SUBJECT", "https://chores.moll.casa"),
+        ENV_FILE=os.environ.get("CHORES_ENV_FILE", str(Path(os.environ.get("ProgramData", "C:/ProgramData")) / "chores/chores.env") if os.name == "nt" else "/etc/chores/chores.env"),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=_env_bool("CHORES_SECURE_COOKIES", False),
@@ -61,6 +62,7 @@ def create_app(test_config=None):
     app.register_blueprint(cms.bp)
     app.register_blueprint(admin.bp)
     app.jinja_env.globals["mascot_art"] = mascots.artwork
+    app.jinja_env.filters["monthly_hours"] = logic.monthly_hours
 
     @app.context_processor
     def inject():
@@ -69,6 +71,7 @@ def create_app(test_config=None):
             "run_token": lambda: secrets.token_hex(16),
             "owner_label": logic.owner_label,
             "FREQ_LABELS": periods.FREQ_LABELS,
+            "MONTHS": periods.MONTHS,
             "version": __version__,
         }
 
@@ -84,6 +87,9 @@ def create_app(test_config=None):
 
     app.add_template_filter(periods.format_time, "clock")
     app.add_template_filter(periods.due_summary, "due_summary")
+    app.add_template_filter(periods.human_date, "human_date")
+    app.add_template_filter(periods.duration, "duration")
+    app.add_template_filter(periods.human_datetime, "human_datetime")
 
     @app.after_request
     def security_headers(resp):

@@ -5,6 +5,12 @@ from pathlib import Path
 
 from flask import current_app, g
 
+STARTER_ALIASES = {
+    "H22": ("Dog Daily Care", "walk the dog\ndog walk\nfeed the dog"),
+    "H27": ("Air & Furnace Filters", "change the filters\nreplace the filters"),
+    "H11": ("Daily Tidying", "tidy up\ntidied up"),
+}
+
 # Kept separate because the v1 -> v2 migration has to rebuild this table
 # (SQLite can't alter a CHECK constraint in place).
 TASKS_TABLE = """
@@ -14,7 +20,7 @@ CREATE TABLE IF NOT EXISTS {name} (
     grp          TEXT    NOT NULL,
     name         TEXT    NOT NULL,
     description  TEXT    NOT NULL DEFAULT '',
-    frequency    TEXT    NOT NULL CHECK (frequency IN ('daily', 'weekly', 'monthly', 'once', 'other', 'selected', 'sequence')),
+    frequency    TEXT    NOT NULL CHECK (frequency IN ('daily', 'weekly', 'monthly', 'once', 'other', 'selected', 'sequence', 'interval', 'yearly')),
     owner        TEXT    NOT NULL DEFAULT 'volunteer',
     hours_month  REAL,
     notes        TEXT    NOT NULL DEFAULT '',
@@ -26,7 +32,14 @@ CREATE TABLE IF NOT EXISTS {name} (
     due_time     TEXT,                       -- daily / selected days: HH:MM
     selected_days TEXT NOT NULL DEFAULT '', -- comma-separated Monday=0 ... Sunday=6
     selected_start TEXT,
-    selected_until TEXT
+    selected_until TEXT,
+    aliases TEXT NOT NULL DEFAULT '',
+    minutes_each REAL,
+    repeat_every INTEGER NOT NULL DEFAULT 1,
+    repeat_unit TEXT NOT NULL DEFAULT 'months',
+    repeat_start TEXT,
+    year_month INTEGER,
+    year_day INTEGER
 );
 """
 
@@ -157,7 +170,41 @@ CREATE TABLE IF NOT EXISTS sequence_notice_log (
 );
 """
 
-SCHEMA_VERSION = "3"
+EXTRAS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS task_skips (
+    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    period_key TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    skipped_on TEXT NOT NULL,
+    PRIMARY KEY(task_id,period_key)
+);
+CREATE TABLE IF NOT EXISTS away_dates (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    starts_on TEXT NOT NULL,
+    ends_on TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS evening_preferences (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    at_time TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS evening_log (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    local_date TEXT NOT NULL,
+    PRIMARY KEY(user_id,local_date)
+);
+CREATE TABLE IF NOT EXISTS quick_add_requests (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    request_key TEXT NOT NULL,
+    task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    PRIMARY KEY(user_id,request_key)
+);
+CREATE TABLE IF NOT EXISTS cover_notices (
+    completion_id INTEGER PRIMARY KEY REFERENCES completions(id) ON DELETE CASCADE
+);
+"""
+
+SCHEMA_VERSION = "4"
 
 
 def connect(path):
@@ -218,7 +265,14 @@ def init_schema(conn):
     columns = {r[1] for r in conn.execute("PRAGMA table_info(tasks)")}
     if "selected_days" not in columns:
         _migrate_to_3(conn)
+    columns = {r[1] for r in conn.execute("PRAGMA table_info(tasks)")}
+    if "aliases" not in columns:
+        _migrate_to_4(conn)
     conn.executescript(SCHEDULE_SCHEMA)
+    conn.executescript(EXTRAS_SCHEMA)
+    if version < 4:
+        for code, (name, aliases) in STARTER_ALIASES.items():
+            conn.execute("UPDATE tasks SET aliases=? WHERE code=? AND name=? AND aliases=''", (aliases, code, name))
     conn.execute("UPDATE meta SET value=? WHERE key='schema_version'", (SCHEMA_VERSION,))
     conn.commit()
 
@@ -241,15 +295,33 @@ def _migrate_to_3(conn):
         conn.execute("PRAGMA foreign_keys=ON")
 
 
+def _migrate_to_4(conn):
+    """Preserve every existing task column and all referencing history."""
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys=OFF")
+    columns = ",".join(r[1] for r in conn.execute("PRAGMA table_info(tasks)"))
+    try:
+        conn.executescript("BEGIN;" + TASKS_TABLE.format(name="tasks_new")
+                          + f"INSERT INTO tasks_new({columns}) SELECT {columns} FROM tasks;"
+                          + "DROP TABLE tasks; ALTER TABLE tasks_new RENAME TO tasks; COMMIT;")
+    except sqlite3.Error:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys=ON")
+
+
 def seed_tasks(conn):
     """Load the 109 cards from the bundled seed file. Existing codes are left alone."""
     seed = json.loads((Path(__file__).parent / "seed" / "tasks.json").read_text())
     added = 0
     for t in seed:
         cur = conn.execute(
-            "INSERT OR IGNORE INTO tasks(code, grp, name, description, frequency, owner, active)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (t["code"], t["group"], t["name"], t["description"], t["frequency"], t["owner"], int(t["active"])),
+            "INSERT OR IGNORE INTO tasks(code, grp, name, description, frequency, owner, active, aliases)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (t["code"], t["group"], t["name"], t["description"], t["frequency"], t["owner"], int(t["active"]),
+             STARTER_ALIASES[t["code"]][1] if t["code"] in STARTER_ALIASES and t["name"] == STARTER_ALIASES[t["code"]][0] else ""),
         )
         added += cur.rowcount
     conn.commit()

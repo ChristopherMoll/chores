@@ -3,15 +3,13 @@
 Kept free of Flask request objects so it can be tested directly.
 """
 import math
-import sqlite3
-from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
 from . import periods, scheduling
 from .db import get_db
 
 SHARED, VOLUNTEER = "shared", "volunteer"
-DEFAULT_POINTS = {"daily": 2, "weekly": 5, "monthly": 10, "once": 8, "other": 8, "selected": 2, "sequence": 2}
+DEFAULT_POINTS = {"daily": 2, "weekly": 5, "monthly": 10, "once": 8, "other": 8, "selected": 2, "sequence": 2, "interval": 8, "yearly": 10}
 VOLUNTEER_BONUS = 1.5
 
 
@@ -45,8 +43,10 @@ def points_for(task, owner_at):
     "Needs Volunteer" task earns a 50% bonus.
     """
     hours = task["hours_month"]
-    if hours:
-        minutes = hours * 60 / max(1, scheduling.monthly_occurrences(task))
+    if dict(task).get("minutes_each") is not None:
+        base = max(1, round(task["minutes_each"] / 5))
+    elif hours:
+        minutes = hours * 60 / max(.01, scheduling.monthly_occurrences(task))
         base = max(1, round(minutes / 5))
     else:
         base = DEFAULT_POINTS[task["frequency"]]
@@ -91,34 +91,85 @@ def board(owners, d=None):
         f"SELECT * FROM tasks WHERE active = 1 AND owner IN ({ph}) ORDER BY grp, code", list(owners)
     ).fetchall()
     keys = {periods.period_key(f, d) for f in periods.FREQUENCIES}
+    keys.update(periods.task_key(t, d) for t in tasks)
     done = _completions_for(keys)
-    last = _last_logged([t["id"] for t in tasks if t["frequency"] == "other"])
+    last = _last_logged([t["id"] for t in tasks])
+    skips = {(r["task_id"], r["period_key"]): r["user_id"] for r in get_db().execute("SELECT task_id,period_key,user_id FROM task_skips")}
     out = {f: [] for f in periods.FREQUENCIES}
     for t in tasks:
-        if t["frequency"] in ("selected", "sequence") or (t["id"], periods.period_key(t["frequency"], d)) in occurrence_keys:
+        if t["frequency"] in ("selected", "sequence") or (t["id"], periods.task_key(t, d)) in occurrence_keys:
             continue
-        c = done.get((t["id"], periods.period_key(t["frequency"], d)))
+        key = periods.task_key(t, d)
+        c = done.get((t["id"], key))
         if t["frequency"] == "once" and c and c["done_on"] != d.isoformat():
             continue
         out[t["frequency"]].append({"task": t, "done": c is not None, "completion": c,
-                                    "period_key": periods.period_key(t["frequency"], d),
+                                    "period_key": key, "skipped": (t["id"], key) in skips, "skip_user_id": skips.get((t["id"], key)),
                                     "last_on": last.get(t["id"]), "due": periods.due_info(t, now)})
     for row in occurrence_rows:
         freq = row["task"]["frequency"]
-        bucket = "selected" if row["source"] == "selected" else freq if row["period_key"] == periods.period_key(freq, d) else "sequence"
+        bucket = "selected" if row["source"] == "selected" else freq if row["period_key"] == periods.task_key(row["task"], d) else "sequence"
         out[bucket].append(row)
+    # Interval/yearly deadlines advance on completion, but today's receipt stays undoable.
+    for t in tasks:
+        if t["frequency"] not in ("interval", "yearly"):
+            continue
+        for c in get_db().execute("SELECT c.*,u.display_name AS doer,u.color AS doer_color FROM completions c JOIN users u ON u.id=c.user_id"
+                                  " WHERE c.task_id=? AND c.done_on=? AND (c.period_key LIKE 'I%' OR c.period_key LIKE 'Y%')", (t["id"], d.isoformat())):
+            if (t["id"], c["period_key"]) not in occurrence_keys:
+                out[t["frequency"]].append({"task": t, "done": True, "completion": c, "period_key": c["period_key"], "last_on": c["done_on"], "due": None, "row_key": f"receipt-{c['id']}"})
+    existing_keys = {(r["task"]["id"], r["period_key"]) for group in out.values() for r in group}
+    for t in tasks:
+        for skip in get_db().execute("SELECT * FROM task_skips WHERE task_id=? AND skipped_on=?", (t["id"], d.isoformat())):
+            prefix = {"daily":"D", "weekly":"W", "monthly":"M", "once":"ONCE", "other":"O", "selected":"S", "interval":"I", "yearly":"Y"}.get(t["frequency"])
+            if not prefix or (skip["period_key"] != "ONCE" if prefix == "ONCE" else not skip["period_key"].startswith(prefix) or not skip["period_key"][1:5].isdigit()):
+                continue
+            if (t["id"], skip["period_key"]) in existing_keys:
+                continue
+            occurrence = get_db().execute("SELECT id FROM task_occurrences WHERE task_id=? AND occurrence_key=?", (t["id"], skip["period_key"])).fetchone()
+            if occurrence:
+                row = scheduling._display_row(scheduling.get_occurrence(occurrence["id"]), d)
+                row["skip_user_id"] = skip["user_id"]
+            else:
+                row = {"task": t, "done": False, "completion": None, "period_key": skip["period_key"], "last_on": last.get(t["id"]), "due": None,
+                       "skipped": True, "skip_user_id": skip["user_id"], "row_key": f"skip-{t['id']}-{skip['period_key']}",
+                       "scheduled_date": date.fromisoformat(skip["period_key"][1:11]) if t["frequency"] in ("interval", "yearly") else None}
+            out[t["frequency"]].append(row)
     for f in out:   # undone first, then soonest due, then alphabetical-by-code
         for row in out[f]:
             row["has_sequence"] = row["task"]["id"] in sequence_roots
-        out[f].sort(key=lambda r: (r["done"], r["due"]["date"] if r["due"] else date.max,
-                                   r["task"]["due_time"] or "", r["task"]["code"]))
+        out[f].sort(key=row_sort_key)
     return out
 
 
 def progress(rows):
+    rows = [r for r in rows if not r.get("skipped")]
     total = len(rows)
     done = sum(1 for r in rows if r["done"])
     return {"done": done, "total": total, "pct": round(100 * done / total) if total else 0}
+
+
+def row_sort_key(row):
+    due = row.get("due")
+    timed = bool(row["task"]["due_time"] or (row.get("run_id") and row.get("ready_at") and row.get("position")))
+    rank = 0 if due and due["overdue"] else 1 if timed else 2 if due else 3
+    day = due["date"] if due else row.get("scheduled_date") or date.max
+    clock = row["task"]["due_time"] or (row["ready_at"].strftime("%H:%M") if row.get("ready_at") and timed else "23:59")
+    return bool(row["done"]), rank, day, clock, row["task"]["name"].casefold()
+
+
+def collapse_missed(rows, d):
+    """Keep every date in storage; represent older unfinished dates together in lists."""
+    grouped, result = {}, []
+    for row in rows:
+        if row.get("source") == "selected" and not row.get("run_id") and not row["done"] and not row.get("skipped") and row["scheduled_date"] <= d:
+            grouped.setdefault(row["task"]["id"], []).append(row)
+        else:
+            result.append(row)
+    for group in grouped.values():
+        group.sort(key=lambda r: r["scheduled_date"], reverse=True)
+        result.append(dict(group[0], backlog=group[1:], backlog_count=len(group)-1))
+    return result
 
 
 def dashboard(username, d=None):
@@ -126,13 +177,15 @@ def dashboard(username, d=None):
     mine = board([username, SHARED], d)
     grabs = board([VOLUNTEER], d)
     d = d or periods.today()
+    grabs_rows = sorted(collapse_missed([r for group in grabs.values() for r in group], d), key=row_sort_key)
     weekly_rows = mine["weekly"] + [r for r in mine["selected"] if r["scheduled_date"] and periods.week_start(d) <= r["scheduled_date"] < periods.week_start(d) + timedelta(days=7)]
     return {
         "board": mine,
         "grabs": grabs,
-        "progress": {f: progress(weekly_rows if f == "weekly" else mine[f]) for f in periods.RECURRING},
-        "grabs_open": sum(1 for group in grabs.values() for r in group
-                          if not r["done"] and not r.get("waiting") and not r.get("blocked")),
+        "grabs_rows": grabs_rows,
+        "progress": {f: progress(weekly_rows if f == "weekly" else mine["daily"] + [r for r in mine["selected"] if r["scheduled_date"] == d] if f == "daily" else mine[f]) for f in periods.RECURRING},
+        "grabs_open": sum(1 for r in grabs_rows
+                          if not r["done"] and not r.get("skipped") and not r.get("waiting") and not r.get("blocked")),
     }
 
 
@@ -164,6 +217,9 @@ def task_views(dash, d=None):
     }
     selected = board_["selected"]
     sequences = board_["sequence"]
+    for key, end in (("today", d), ("week", week_end), ("month", month_end)):
+        views[key]["rows"] += [r for freq in ("interval", "yearly") for r in board_[freq]
+                               if r["done"] or r.get("skipped") or due_by(r, end)]
     views["today"]["rows"] += [r for r in selected if r["scheduled_date"] <= d]
     views["week"]["rows"] += [r for r in selected if r["scheduled_date"] <= week_end]
     views["month"]["rows"] += [r for r in selected if r["scheduled_date"] <= month_end]
@@ -174,16 +230,15 @@ def task_views(dash, d=None):
         if start:
             view["rows"] = [r for r in view["rows"] if not (r.get("occurrence_id") and r["done"]
                             and r["completion"]["done_on"] < start.isoformat())]
-        view["rows"] = [dict(r, due=r["due"] if r.get("occurrence_id") else periods.due_info(r["task"], datetime.combine(d, periods.now().time()), explicit_only=False))
+        view["rows"] = [dict(r, due=None if r["task"]["frequency"] == "daily" and not r["task"]["due_time"] else r["due"] if r.get("occurrence_id") or r.get("skipped") or r["done"] else periods.due_info(r["task"], datetime.combine(d, periods.now().time()), explicit_only=False))
                         for r in view["rows"]]
-        view["rows"] = sorted(view["rows"], key=lambda r: (
-            r["done"], (r["due"]["date"] if r["due"] else r.get("scheduled_date")) or periods.due_date(r["task"], d) or date.max,
-            r["task"]["due_time"] or "", r["task"]["name"].casefold()))
+        view["rows"] = sorted(collapse_missed(view["rows"], d), key=row_sort_key)
         view["progress"] = progress([r for r in view["rows"] if not r.get("blocked") and (key != "today" or not r.get("waiting"))])
-        view["open"] = [r for r in view["rows"] if not r["done"] and not r.get("waiting") and not r.get("blocked")]
-        view["upcoming"] = [r for r in view["rows"] if not r["done"] and (r.get("waiting") or r.get("blocked"))]
+        view["open"] = [r for r in view["rows"] if not r["done"] and not r.get("skipped") and not r.get("waiting") and not r.get("blocked")]
+        view["upcoming"] = [r for r in view["rows"] if not r["done"] and not r.get("skipped") and (r.get("waiting") or r.get("blocked"))]
         view["remaining"] = len(view["open"]) + (len(view["upcoming"]) if key != "today" else 0)
         view["completed"] = [r for r in view["rows"] if r["done"]]
+        view["skipped"] = [r for r in view["rows"] if r.get("skipped")]
     return views
 
 
@@ -196,43 +251,54 @@ def can_complete(user, task):
 
 
 def can_steal(user, task):
-    """Voice may cross off another member's task. Volunteer tasks still have to be claimed in the app."""
+    """A member may cover another member's task; the actual doer receives credit."""
     return (user["role"] == "member" and task["active"]
             and task["owner"] not in (user["username"], SHARED, VOLUNTEER))
 
 
-def toggle(user, task, d=None, desired_done=None, steal=False, occurrence_id=None, early=False):
+def toggle(user, task, d=None, desired_done=None, steal=False, occurrence_id=None, early=False, period_override=None, expected_period=None):
     """Cross off (or un-cross) a task for its current period. Returns the new state or raises PermissionError.
 
     steal=True also allows crossing off another member's task (see can_steal); the doer gets the points.
     """
     d = d or periods.today()
-    occurrence = scheduling.resolve(task, occurrence_id)
+    if period_override and desired_done is False and not occurrence_id:
+        old = get_db().execute("SELECT id FROM task_occurrences WHERE task_id=? AND occurrence_key=?", (task["id"], period_override)).fetchone()
+        occurrence_id = old["id"] if old else None
+        occurrence = scheduling.get_occurrence(occurrence_id) if occurrence_id else None
+    else:
+        occurrence = scheduling.resolve(task, occurrence_id)
     if occurrence:
         return scheduling.toggle(user, occurrence, desired_done, early=early, steal=steal)
-    allowed = can_complete(user, task) or (steal and can_steal(user, task))
     db = get_db()
-    key = periods.period_key(task["frequency"], d)
-    existing = db.execute("SELECT * FROM completions WHERE task_id = ? AND period_key = ?",
-                          (task["id"], key)).fetchone()
-    # Explicit state makes a repeated request safe after an interrupted connection.
-    if desired_done is True and existing:
+    with db:
+        # Serialize skip/complete and interval advancement, including two phones
+        # sending the same deadline at once.
+        db.execute("UPDATE tasks SET id=id WHERE id=?", (task["id"],))
+        allowed = can_complete(user, task) or (steal and can_steal(user, task))
+        key = period_override if desired_done is False and period_override else periods.task_key(task, d)
+        if expected_period and key != expected_period:
+            raise ValueError("This task's schedule has moved on. Refresh your list before changing it.")
+        existing = db.execute("SELECT * FROM completions WHERE task_id = ? AND period_key = ?",
+                              (task["id"], key)).fetchone()
+        # Explicit state makes a repeated request safe after an interrupted connection.
+        if desired_done is True and existing:
+            if not allowed:
+                raise PermissionError("That task belongs to someone else.")
+            return True
+        if desired_done is False and not existing:
+            if not allowed:
+                raise PermissionError("That task belongs to someone else.")
+            return False
+        if existing:
+            if existing["user_id"] != user["id"] and user["role"] != "admin":
+                raise PermissionError("Only the person who crossed this off can undo it.")
+            db.execute("DELETE FROM completions WHERE id = ?", (existing["id"],))
+            return False
         if not allowed:
             raise PermissionError("That task belongs to someone else.")
-        return True
-    if desired_done is False and not existing:
-        if not allowed:
-            raise PermissionError("That task belongs to someone else.")
-        return False
-    if existing:
-        if existing["user_id"] != user["id"] and user["role"] != "admin":
-            raise PermissionError("Only the person who crossed this off can undo it.")
-        db.execute("DELETE FROM completions WHERE id = ?", (existing["id"],))
-        db.commit()
-        return False
-    if not allowed:
-        raise PermissionError("That task belongs to someone else.")
-    try:
+        if db.execute("SELECT 1 FROM task_skips WHERE task_id=? AND period_key=?", (task["id"], key)).fetchone():
+            raise ValueError("Restore this skipped task before completing it.")
         db.execute(
             "INSERT INTO completions(task_id, user_id, period_key, done_on, done_at, owner_at, points)"
             " VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -241,12 +307,6 @@ def toggle(user, task, d=None, desired_done=None, steal=False, occurrence_id=Non
              task["owner"], points_for(task, task["owner"])),
         )
         scheduling.after_completion(task, key)
-        db.commit()
-    except sqlite3.IntegrityError:   # the other person crossed it off at the same moment
-        db.rollback()
-    except Exception:
-        db.rollback()
-        raise
     return True
 
 
@@ -270,31 +330,17 @@ def daily_points(user_id, start, days):
 
 
 def streak(username, d=None, limit=366):
-    """Consecutive days on which every daily task this person holds (alone or shared) got done.
-
-    Today counts once it's complete; an unfinished today doesn't break the streak.
-    Uses today's assignments for past days: re-dealing a task changes the history view.
-    """
-    d = d or periods.today()
-    db = get_db()
-    ids = [r["id"] for r in db.execute(
-        "SELECT id FROM tasks WHERE active = 1 AND frequency = 'daily' AND owner IN (?, ?)",
-        (username, SHARED)).fetchall()]
-    if not ids:
-        return 0
-    start = d - timedelta(days=limit)
-    rows = db.execute(
-        f"SELECT period_key, COUNT(*) AS n FROM completions WHERE task_id IN ({','.join('?' * len(ids))})"
-        " AND period_key >= ? AND period_key LIKE 'D%' GROUP BY period_key",
-        ids + [f"D{start.isoformat()}"]).fetchall()
-    full = {r["period_key"][1:] for r in rows if r["n"] >= len(ids)}
-    n, day = 0, d
-    if day.isoformat() not in full:
-        day -= timedelta(days=1)
-    while day.isoformat() in full and n < limit:
-        n += 1
-        day -= timedelta(days=1)
-    return n
+    """Completed routine days; off/away/skipped days don't award or break a streak."""
+    from .planning import routine_history
+    count = 0
+    for row in reversed(routine_history(username, limit, d or periods.today())):
+        if row["away"] or not row["total"]:
+            continue
+        if row["handled"]:
+            count += bool(row["done"])
+        elif row["date"] != (d or periods.today()):
+            break
+    return count
 
 
 def load_hours(username):
@@ -305,10 +351,20 @@ def load_hours(username):
         recurring_steps.update(step["task_id"] for step in scheduling.recipe(seq["root_task_id"]))
     tasks = [t for t in db.execute("SELECT * FROM tasks WHERE active=1 AND frequency!='once'")
              if t["frequency"] != "sequence" or t["id"] in recurring_steps]
-    own = sum(t["hours_month"] or 0 for t in tasks if t["owner"] == username)
-    shared = sum(t["hours_month"] or 0 for t in tasks if t["owner"] == SHARED) / 2
+    own = sum(monthly_hours(t) for t in tasks if t["owner"] == username)
+    shared = sum(monthly_hours(t) for t in tasks if t["owner"] == SHARED) / 2
     return {"own": own, "shared_half": shared, "total": own + shared,
             "tasks": sum(t["owner"] == username for t in tasks)}
+
+
+def monthly_hours(task):
+    if task["minutes_each"] is None:
+        return task["hours_month"] or 0
+    count = scheduling.monthly_occurrences(task)
+    if task["frequency"] == "sequence":
+        count = sum(scheduling.monthly_occurrences(root) for root in get_db().execute("SELECT t.* FROM task_sequences s JOIN tasks t ON t.id=s.root_task_id WHERE t.active=1 AND t.frequency!='once'")
+                    if any(step["task_id"] == task["id"] for step in scheduling.recipe(root["id"])))
+    return task["minutes_each"] * count / 60
 
 
 BADGES = [
@@ -352,24 +408,6 @@ def recent_activity(user_id=None, limit=25):
 
 
 def history_grid(username, user_id, days=14, d=None):
-    """Per-day completion of this person's daily tasks, for a little heat-strip."""
-    d = d or periods.today()
-    db = get_db()
-    ids = [r["id"] for r in db.execute(
-        "SELECT id FROM tasks WHERE active = 1 AND frequency = 'daily' AND owner IN (?, ?)",
-        (username, SHARED)).fetchall()]
-    start = d - timedelta(days=days - 1)
-    counts = defaultdict(int)
-    if ids:
-        for r in db.execute(
-                f"SELECT period_key, COUNT(*) AS n FROM completions WHERE task_id IN ({','.join('?' * len(ids))})"
-                " AND period_key >= ? AND period_key LIKE 'D%' GROUP BY period_key",
-                ids + [f"D{start.isoformat()}"]):
-            counts[r["period_key"][1:]] = r["n"]
-    out = []
-    for i in range(days):
-        day = start + timedelta(days=i)
-        n = counts[day.isoformat()]
-        out.append({"date": day, "done": n, "total": len(ids),
-                    "pct": round(100 * n / len(ids)) if ids else 0})
-    return out
+    """Routine history includes selected days and marks excused days."""
+    from .planning import routine_history
+    return routine_history(username, days, d or periods.today())

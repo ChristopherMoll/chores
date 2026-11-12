@@ -132,7 +132,7 @@ def test_stealing_someone_elses_task_crosses_it_off_and_tells_them(app, chris):
     (subs, payload), _ = deliver.call_args
     with app.app_context():
         assert [s["user_id"] for s in subs] == [uid("andrea")]
-    assert payload["title"] == "Task stolen!" and payload["body"] == "Chris crossed off Laundry for you."
+    assert payload["title"] == "A little help" and payload["body"] == "Chris took care of Laundry for you."
     assert payload["url"] == f"/tasks/{task_id(app, 'H01')}"
 
 
