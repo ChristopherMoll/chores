@@ -32,7 +32,7 @@ What it should do:
 - **Be transparent.** Either of you can look at the other's dashboard in full detail. There's no private view.
 - **Be boring to run.** One Python process, one SQLite file, no build step. It sits quietly next to Plex and SABnzbd and backs itself up every night.
 
-Out of scope on purpose: native mobile apps, multiple households and chat. Reminders are strictly opt-in: nothing nags you unless you asked it to, for that specific task, because reminders handed out by default would work against the "without being reminded" rule.
+Out of scope on purpose: native mobile apps, multiple households and chat. Deadline reminders are strictly opt-in: nothing nags you unless you asked it to, for that specific task, because reminders handed out by default would work against the "without being reminded" rule. The one notification that is on by default is a sequence's "next step is ready", which is a timer you started yourself.
 
 ---
 
@@ -96,7 +96,7 @@ Completing Wash at 10:00 makes Dry ready at 11:00. Completing Dry late, at 11:20
 - Template edits affect future runs. Existing runs retain their original names, owners, effort estimates and delays. Archive referenced tasks to preserve runs; permanent deletion requires removing sequence links and finishing or cancelling active runs first.
 - Each real step earns its own points. Enter active work in the step's minutes estimate, excluding machine waiting time; the sequence group earns no extra points. Unlinked sequence steps and steps used only by one-offs are excluded from recurring assigned workload.
 
-Ready notifications are optional and personal. Use the checkbox in the sequence editor or the button on a run page, and enable device notifications in **More**. Only opted-in people receive nudges for their own or Shared steps; a volunteer run's doer can receive its volunteer follow-ups. Turn them off in **More → Your sequence reminders**. The existing once-a-minute notification job handles delivery, with the same two-hour late-send window as other reminders. Browser refreshes cannot send notifications.
+Ready notifications are on by default and personal: the moment a follow-up step's wait is over, each person it belongs to is told (within the minute, on every device where they enabled notifications in **More**). That covers your own and Shared steps; a volunteer run's doer receives its volunteer follow-ups. To stop them for one sequence, untick the checkbox in the sequence editor or use the button on a run page. **More → Sequence notifications you turned off** lists those sequences and turns them back on. Away dates pause them.
 
 Siri understands ready selected-day occurrences and sequence steps. If multiple missed dates or laundry loads are ready for the same task, it takes the oldest ready one. Distinct chores with similar names still require clarification. It cannot complete a waiting or blocked step by voice. A repeated command for a completed step is safe when it still identifies the same occurrence; naming a task with another ready occurrence refers to that ready work.
 
@@ -554,7 +554,7 @@ After pulling a version with schema changes, run `python manage.py migrate`.
 - **"Each of you" cards are one shared tick.** Self-Care and similar cards are meant to be held by each person for themselves, but as *Shared* tasks one tick covers both. If that matters, add a personal copy for each person (for example C22-C for Chris and C22-A for Andrea) and delete the shared one.
 - **Streaks use today's assignments and schedule.** Re-dealing a routine or changing selected days can change the historical streak.
 - **The login lockout is in memory** and resets when the service restarts. That's fine for a two-person household.
-- **Reminders are personal and opt-in.** More also offers an evening summary at a household-time-zone clock time, once per day when tasks remain. It pauses during Away dates and needs notifications enabled on a device.
+- **Reminders are personal and opt-in**, apart from a sequence's ready notifications, which are on until you turn them off. More also offers an evening summary at a household-time-zone clock time, once per day when tasks remain. It pauses during Away dates and needs notifications enabled on a device.
 - **Each reminder fires once per occurrence.** It doesn't repeat until the task is done. Add several reminders if you want more than one nudge.
 - **Finished one-offs stay in the Manage grid** so their history is kept. Delete or turn them off to tidy up.
 - **Logging out doesn't turn off notifications on that device.** Use **Turn off** first. If someone else logs in and enables them, the device moves to that person.

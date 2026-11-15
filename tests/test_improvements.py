@@ -237,8 +237,6 @@ def test_away_suppresses_only_personal_reminders_and_sequence_notices(app):
             reminders.add(uid(name), task["id"], 0, "days", "11:00")
         root = laundry(owner="shared")
         start(root)
-        for name in ("chris", "andrea"):
-            db.get_db().execute("INSERT INTO sequence_subscriptions VALUES (?,?)", (root["id"],uid(name)))
         db.get_db().execute("INSERT INTO away_dates(user_id,starts_on,ends_on) VALUES (?, '2026-11-11','2026-11-11')", (uid("chris"),))
         db.get_db().commit()
         clock(app, "2026-11-11T11:00:00-05:00")

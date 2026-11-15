@@ -432,8 +432,23 @@ def cancel_run(user, run_id):
                          " (SELECT 1 FROM completions c WHERE c.task_id=task_occurrences.task_id AND c.period_key=task_occurrences.occurrence_key)", (run_id,))
 
 
+def set_ready_notifications(root_task_id, user_id, enabled):
+    db = get_db()
+    if enabled:
+        db.execute("DELETE FROM sequence_mutes WHERE root_task_id=? AND user_id=?", (root_task_id, user_id))
+    else:
+        db.execute("INSERT OR IGNORE INTO sequence_mutes VALUES (?,?)", (root_task_id, user_id))
+
+
+def ready_notifications_on(root_task_id, user_id):
+    return not get_db().execute("SELECT 1 FROM sequence_mutes WHERE root_task_id=? AND user_id=?", (root_task_id, user_id)).fetchone()
+
+
 def send_ready_notifications(now=None):
-    """Use the existing minute job. No browser timers or in-memory queues."""
+    """Tell each person a follow-up step is ready, as soon as the minute job sees its wait is over.
+
+    Use the existing minute job. No browser timers or in-memory queues.
+    """
     from . import push, planning
     db = get_db()
     now = now or now_utc()
@@ -444,8 +459,9 @@ def send_ready_notifications(now=None):
         if ready > now or now - ready > timedelta(hours=2) or completion(o):
             continue
         task = occurrence_task(o)
-        for member in db.execute("SELECT u.id,u.username FROM sequence_subscriptions s JOIN users u ON u.id=s.user_id"
-                                 " WHERE s.root_task_id=? AND u.role='member'", (o["root_task_id"],)).fetchall():
+        # On by default for whoever the step belongs to; sequence_mutes holds the people who opted out.
+        for member in db.execute("SELECT u.id,u.username FROM users u WHERE u.role='member' AND NOT EXISTS"
+                                 " (SELECT 1 FROM sequence_mutes m WHERE m.root_task_id=? AND m.user_id=u.id)", (o["root_task_id"],)).fetchall():
             if planning.is_away(member["id"], now.astimezone(periods.tz()).date()) or planning.is_away(member["id"], ready.astimezone(periods.tz()).date()):
                 continue
             root = db.execute("SELECT * FROM task_occurrences WHERE run_id=? AND position=0", (o["run_id"],)).fetchone()

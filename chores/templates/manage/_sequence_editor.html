@@ -14,5 +14,5 @@
   <template data-sequence-template>{{ step_fields({'task_id':none,'name':'','delay':1,'delay_unit':'hours','hours':''}) }}</template>
   <button type="button" class="btn" data-add-step hidden>+ Add a follow-up</button>
   <p class="small muted">A Sequence step has no independent repeat schedule. To reuse an existing task here, first set its Repeats to Sequence step. Existing runs keep their original steps and delays when you edit this list.</p>
-  {% if g.user.role == 'member' %}<label class="check"><input type="checkbox" name="sequence_notify" {{ 'checked' if sequence_subscribed }}> Remind me when the next step becomes ready</label><p class="small muted">Optional, and just for you. Device notifications are configured in More.</p>{% endif %}
+  {% if g.user.role == 'member' %}<label class="check"><input type="checkbox" name="sequence_notify" {{ 'checked' if sequence_subscribed }}> Tell me when the next step becomes ready</label><p class="small muted">On unless you untick it, and just for you. Device notifications are configured in More.</p>{% endif %}
 </details>

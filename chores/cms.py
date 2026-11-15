@@ -270,18 +270,14 @@ def _sequence_context(task_id=None):
             step["delay_unit"] = {1440: "days", 60: "hours", 1: "minutes"}[divisor]
     return {"sequence_steps": steps,
             "sequence_choices": db.execute("SELECT id,name FROM tasks WHERE frequency='sequence' AND active=1 ORDER BY name").fetchall(),
-            "sequence_subscribed": bool(task_id and db.execute("SELECT 1 FROM sequence_subscriptions WHERE root_task_id=? AND user_id=?",
-                                                                (task_id, g.user["id"])).fetchone())}
+            "sequence_subscribed": not task_id or scheduling.ready_notifications_on(task_id, g.user["id"])}
 
 
 def _save_sequence(task_id, steps):
     task = get_db().execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
     scheduling.save_recipe(task, steps)
     if steps is not None and g.user["role"] == "member":
-        if request.form.get("sequence_notify") and steps:
-            get_db().execute("INSERT OR IGNORE INTO sequence_subscriptions VALUES (?,?)", (task_id, g.user["id"]))
-        else:
-            get_db().execute("DELETE FROM sequence_subscriptions WHERE root_task_id=? AND user_id=?", (task_id, g.user["id"]))
+        scheduling.set_ready_notifications(task_id, g.user["id"], bool(request.form.get("sequence_notify")) or not steps)
 
 
 def _next_code(grp):

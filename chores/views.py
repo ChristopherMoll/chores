@@ -330,8 +330,7 @@ def sequence_run(run_id):
     return render_template("sequence_run.html", run=run, rows=rows,
                            can_control=logic.can_complete(g.user, rows[0]["task"]) if rows else False,
                            can_start=logic.can_complete(g.user, root) and bool(scheduling.recipe(root["id"])),
-                           subscribed=bool(get_db().execute("SELECT 1 FROM sequence_subscriptions WHERE root_task_id=? AND user_id=?",
-                                                           (run["root_task_id"], g.user["id"])).fetchone()),
+                           subscribed=scheduling.ready_notifications_on(run["root_task_id"], g.user["id"]),
                            nags=reminders.task_ids_for(g.user["id"]))
 
 
@@ -370,12 +369,9 @@ def sequence_reminders(task_id):
     _task_or_404(task_id)
     if g.user["role"] != "member":
         abort(403)
-    if request.form.get("enabled") == "1":
-        get_db().execute("INSERT OR IGNORE INTO sequence_subscriptions VALUES (?,?)", (task_id, g.user["id"]))
-    else:
-        get_db().execute("DELETE FROM sequence_subscriptions WHERE root_task_id=? AND user_id=?", (task_id, g.user["id"]))
+    scheduling.set_ready_notifications(task_id, g.user["id"], request.form.get("enabled") == "1")
     get_db().commit()
-    flash("Your sequence reminder preference was saved.", "ok")
+    flash("Your sequence notification preference was saved.", "ok")
     return redirect(request.referrer or url_for("main.more"))
 
 
@@ -473,7 +469,7 @@ def more():
                            away_items=get_db().execute("SELECT * FROM away_dates WHERE user_id=? ORDER BY starts_on DESC", (g.user["id"],)).fetchall(),
                            summary_pref=get_db().execute("SELECT * FROM evening_preferences WHERE user_id=?", (g.user["id"],)).fetchone(),
                            sequence_reminder_items=get_db().execute(
-                               "SELECT t.id,t.name FROM sequence_subscriptions s JOIN tasks t ON t.id=s.root_task_id"
+                               "SELECT t.id,t.name FROM sequence_mutes s JOIN tasks t ON t.id=s.root_task_id"
                                " WHERE s.user_id=? ORDER BY t.name", (g.user["id"],)).fetchall())
 
 

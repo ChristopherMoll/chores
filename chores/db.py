@@ -161,6 +161,13 @@ CREATE TABLE IF NOT EXISTS sequence_subscriptions (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY(root_task_id,user_id)
 );
+-- Ready notifications for follow-up steps are on by default; a row here is one person opting out of one sequence.
+-- (sequence_subscriptions is the older opt-in list and is no longer read.)
+CREATE TABLE IF NOT EXISTS sequence_mutes (
+    root_task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY(root_task_id,user_id)
+);
 CREATE TABLE IF NOT EXISTS sequence_notice_log (
     occurrence_id INTEGER NOT NULL REFERENCES task_occurrences(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

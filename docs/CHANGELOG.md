@@ -2,6 +2,13 @@
 
 All notable changes to this project are recorded here. Versions follow [semantic versioning](https://semver.org): the major number goes up for changes that need a manual step (a data migration or config change), the minor number for new features, and the patch number for fixes.
 
+## [1.11.0] - 2026-11-15
+
+No manual step. The update adds one small table for sequence opt-outs on its own.
+
+### Changed
+- **Sequence ready notifications are on by default.** The moment a follow-up step's wait is over, everyone it belongs to is told, without having to opt in per sequence. Turn them off for one sequence with the checkbox in its editor or the button on a run page; More lists the ones you turned off. Earlier opt-ins are no longer needed. Notifications still need to be enabled on a device, and Away dates still pause them.
+
 ## [1.10.0] - 2026-11-15
 
 No manual step. The update adds one small table for thank-yous on its own.

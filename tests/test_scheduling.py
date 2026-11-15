@@ -304,22 +304,43 @@ def test_future_occurrence_deep_link_and_admin_view(app):
         assert f'id="occurrence-{future}"'.encode() in response.data
 
 
-def test_sequence_reminders_are_opt_in_deduplicated_and_survive_restart(app):
+def test_sequence_notifications_are_on_by_default_deduplicated_and_survive_restart(app):
     clock(app)
     with app.app_context(), patch("chores.push.send_one", return_value="ok") as sent:
         root = laundry(owner="shared")
         _, dry, _ = start(root)
         subscribe("chris")
         subscribe("andrea", "https://web.push.apple.com/second")
-        clock(app, "2026-11-11T11:00:00-05:00")
-        assert reminders.run_due() == 0
-        db.get_db().execute("INSERT INTO sequence_subscriptions VALUES (?,?)", (root["id"], uid("chris")))
+        scheduling.set_ready_notifications(root["id"], uid("andrea"), False)    # Andrea opted out of this one
         db.get_db().commit()
-        assert reminders.run_due() == 1
+        clock(app, "2026-11-11T10:59:00-05:00")
+        assert reminders.run_due() == 0                                       # not before the wait is over
+        clock(app, "2026-11-11T11:00:00-05:00")
+        assert reminders.run_due() == 1                                       # nobody had to ask for it
         db.init_schema(db.get_db())
         assert reminders.run_due() == 0
         assert sent.call_count == 1
         assert f"/occurrences/{dry['id']}" in str(sent.call_args)
+
+
+def test_ready_notifications_can_be_turned_off_and_back_on_per_sequence(app):
+    clock(app)
+    client = app.test_client()
+    token = login(client, "chris")
+    with app.app_context():
+        root = laundry()
+        run_id = db.get_db().execute("SELECT run_id FROM task_occurrences WHERE id=?", (start(root)[0]["id"],)).fetchone()[0]
+        subscribe("chris")
+    assert "Turn off ready notifications for me" in client.get(f"/sequences/{run_id}").text
+    assert "Sequence notifications you turned off" not in client.get("/more").text
+    client.post(f"/tasks/{root['id']}/sequence-reminders", data={"csrf": token, "enabled": "0"})
+    assert "Tell me when the next step is ready" in client.get(f"/sequences/{run_id}").text
+    assert "Sequence notifications you turned off" in client.get("/more").text
+    clock(app, "2026-11-11T11:00:00-05:00")
+    with app.app_context(), patch("chores.push.send_one", return_value="ok") as sent:
+        assert reminders.run_due() == 0
+        client.post(f"/tasks/{root['id']}/sequence-reminders", data={"csrf": token, "enabled": "1"})
+        assert reminders.run_due() == 1 and sent.call_count == 1
 
 
 def test_selected_reminder_is_for_one_date_and_skips_completed_date(app):
@@ -472,8 +493,6 @@ def test_ready_notification_retries_failures_but_never_notifies_cancelled_runs(a
         root = laundry()
         wash, dry, _ = start(root)
         subscribe("chris")
-        db.get_db().execute("INSERT INTO sequence_subscriptions VALUES (?,?)", (root["id"], uid("chris")))
-        db.get_db().commit()
         clock(app, "2026-11-11T11:00:00-05:00")
         assert reminders.run_due() == 0
         deliver.return_value = {"ok": 1, "error": 0}
