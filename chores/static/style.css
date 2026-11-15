@@ -443,6 +443,21 @@ form.inline { display:inline; }
 .missed-dates ul { margin:.3rem 0; padding-left:1.1rem; }
 .system-status { margin-bottom:1.5rem; }
 @media(min-width:700px) { .period-tabs { grid-template-columns:repeat(5,minmax(0,1fr)); max-width:none; } .period-tabs > a,.period-tabs > a:nth-child(n+4) { grid-column:span 1; } }
+/* Find any task from My tasks, whichever list it lives on. */
+.task-search { display:flex; flex-wrap:wrap; align-items:center; gap:.2rem .6rem; margin:0 0 1rem; }
+.task-search .search-field { flex:1 1 200px; }
+.task-search input[type=search] { -webkit-appearance:none; appearance:none; }
+.task-search [hidden] { display:none; }
+.task-search { scroll-margin-top:.75rem; }
+/* While searching, results sit directly under the box so a phone keyboard doesn't cover them. */
+.dashboard[data-view="search"] .quick-add,.dashboard[data-view="search"] .period-tabs { display:none; }
+/* Thank-yous: a note on the dashboard of the person thanked, and a line on the finished task. */
+.thanks-note { display:flex; flex-wrap:wrap; align-items:center; gap:.25rem .75rem; border-left:3px solid var(--accent); padding-left:1rem; margin:0 0 1.25rem; font-size:.9375rem; }
+.thanks-note > .icon { color:var(--accent); flex:none; }
+.thanks-note > div { flex:1 1 220px; }
+.thanks-note p { margin:.15rem 0; }
+.thanks-line { display:flex; align-items:center; gap:.35rem; margin:.25rem 0 0; }
+.thanks-line .icon { width:1rem; height:1rem; color:var(--accent); flex:none; }
 .alias-form { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.65rem; }
 .alias-form select { flex:1 1 12rem; min-width:0; max-width:100%; }
 .feed li > form { margin-left:auto; }

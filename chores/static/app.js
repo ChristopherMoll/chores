@@ -119,7 +119,7 @@
     window.MoleMotion?.restore(motion);
   }
 
-  async function setTask(url, desired, taskId, period, occurrenceId = null, early = false, completionId = null, cover = false) {
+  async function setTask(url, desired, taskId, period, occurrenceId = null, early = false, completionId = null, cover = false, credit = "") {
     if (savingTask) return;
     if (!navigator.onLine) { toast("You're offline. Reconnect, then try again.", "error"); return; }
     savingTask = true;
@@ -138,8 +138,10 @@
     if (early) data.set("early", "1");
     if (completionId) data.set("completion_id", completionId);
     if (cover) data.set("cover", "1");
+    if (credit) data.set("credit", credit);
     data.set("board_user", query(".dashboard")?.dataset.username || "");
     data.set("view", query(".dashboard")?.dataset.view || "today");
+    data.set("q", query(".dashboard")?.dataset.q || "");
     data.set("return_to", location.pathname + location.search);
     data.set("surface", query("#volunteer-region") ? "together" : "tasks");
     const controller = new AbortController();
@@ -176,6 +178,7 @@
       if (result.done) {
         const ownCompletion = result.can_undo;
         let message = ownCompletion ? (allDone && taskRegion ? "Today's list is taken care of. Enjoy the space you made." : "One more thing taken care of. +" + result.points + " points.") : result.by + " already took care of this. Thank you both.";
+        if (result.credited) message = result.thanks_sent === false ? result.credited + " gets the credit. Your thank-you will be waiting in the app." : result.credited + " gets the credit, and your thank-you is on its way.";
         if (result.next_step) message += " " + result.next_step.name + " will be ready " + result.next_step.at + ".";
         toast(message, allDone && taskRegion ? "win" : "", ownCompletion ? () => setTask(url, false, taskId, period, result.occurrence_id || occurrenceId, false, result.completion_id) : null);
       } else {
@@ -190,7 +193,7 @@
       }
       await refreshTogether();
     } catch (error) {
-      const retry = error.refresh ? () => location.reload() : error.noRetry ? null : () => setTask(url, desired, taskId, period, occurrenceId, early, completionId, cover);
+      const retry = error.refresh ? () => location.reload() : error.noRetry ? null : () => setTask(url, desired, taskId, period, occurrenceId, early, completionId, cover, credit);
       toast(error.name === "AbortError" || error instanceof TypeError ? "Couldn't confirm the save. It's safe to try again." : error.message, "error", retry, error.refresh ? "Refresh list" : "Try again");
     } finally {
       clearTimeout(timeout);
@@ -203,7 +206,30 @@
     const form = event.target;
     if (!form.classList.contains("tick-form")) return;
     event.preventDefault();
-    setTask(form.action, query('[name="done"]', form).value === "1", form.closest(".task").dataset.task, query('[name="period"]', form).value, query('[name="occurrence_id"]', form)?.value, query('[name="early"]', form)?.value === "1", query('[name="completion_id"]', form)?.value, query('[name="cover"]', form)?.value === "1");
+    setTask(form.action, query('[name="done"]', form).value === "1", form.closest(".task").dataset.task, query('[name="period"]', form).value, query('[name="occurrence_id"]', form)?.value, query('[name="early"]', form)?.value === "1", query('[name="completion_id"]', form)?.value, query('[name="cover"]', form)?.value === "1", query('[name="credit"]', form)?.value || "");
+  });
+
+  // "Say thank you" on something your partner already crossed off.
+  document.addEventListener("submit", async event => {
+    const form = event.target;
+    if (!form.classList.contains("thanks-form")) return;
+    event.preventDefault();
+    if (!navigator.onLine) { toast("You're offline. Reconnect, then try again.", "error"); return; }
+    const button = query("button", form);
+    button.disabled = true;
+    try {
+      const response = await fetch(form.action, { method: "POST", headers: { "Accept": "application/json", "X-CSRF-Token": csrf }, credentials: "same-origin" });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.ok) throw new Error(result?.error || "Couldn't send your thank-you. Refresh the page and try again.");
+      const note = document.createElement("p");
+      note.className = "thanks-line muted small";
+      note.textContent = "You said thank you.";
+      form.replaceWith(note);
+      toast(result.message);
+    } catch (error) {
+      button.disabled = false;
+      toast(error instanceof TypeError ? "Couldn't send your thank-you. Check your connection and try again." : error.message, "error");
+    }
   });
 
   document.addEventListener("click", event => {
@@ -415,6 +441,52 @@
       } catch (error) { if (error.name !== "AbortError") location.assign(link.href); }
     });
     document.addEventListener("keydown", event => { if (event.key === "Escape" && !editor.hidden) closeEditor(); });
+  }
+
+  // Find any task: results replace the list as you type. Without JavaScript the form reloads the page.
+  const searchForm = query("[data-task-search]");
+  if (searchForm) {
+    const input = query('input[name="q"]', searchForm);
+    const clear = query("[data-search-clear]", searchForm);
+    const board = query(".dashboard");
+    const listView = board.dataset.view === "search" ? "today" : board.dataset.view;   // where Clear returns to
+    let timer, controller;
+    const words = () => input.value.trim().replace(/\s+/g, " ");
+    async function showResults() {
+      clearTimeout(timer);
+      if (savingTask) { timer = setTimeout(showResults, 300); return; }
+      const q = words();
+      if (q === board.dataset.q) return;
+      const url = new URL(searchForm.action, location.href);
+      if (q) url.searchParams.set("q", q);
+      else if (listView !== "today") url.searchParams.set("view", listView);
+      controller?.abort();
+      controller = new AbortController();
+      try {
+        const response = await fetch(url, { cache: "no-store", credentials: "same-origin", signal: controller.signal });
+        if (!response.ok || response.redirected) throw new Error("search");
+        const page = new DOMParser().parseFromString(await response.text(), "text/html");
+        const next = page.getElementById("tasks-region"), nextBoard = query(".dashboard", page);
+        if (savingTask) { timer = setTimeout(showResults, 300); return; }
+        if (!next || !nextBoard) throw new Error("search");
+        document.getElementById("tasks-region").replaceWith(next);
+        paint(next); setupForms(next);
+        board.dataset.view = nextBoard.dataset.view;
+        board.dataset.q = nextBoard.dataset.q;
+        const tabs = query(".period-tabs", page);
+        if (tabs) query(".period-tabs")?.replaceWith(tabs);
+        clear.hidden = !q;
+        // On a phone, bring the box to the top so the keyboard leaves room for the results.
+        if (q && window.matchMedia("(max-width:999px)").matches && searchForm.getBoundingClientRect().top > 24) searchForm.scrollIntoView({ block: "start", behavior: "instant" });
+        history.replaceState(null, "", url.pathname + url.search);
+      } catch (error) {
+        if (error.name !== "AbortError") toast("Couldn't search just now. Check your connection and try again.", "error");
+      }
+    }
+    query("[data-search-submit]", searchForm).hidden = true;   // typing is enough; Enter still works
+    input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(showResults, 180); });
+    searchForm.addEventListener("submit", event => { event.preventDefault(); input.blur(); showResults(); });
+    clear.addEventListener("click", event => { event.preventDefault(); input.value = ""; showResults(); input.focus(); });
   }
 
   const installed = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;

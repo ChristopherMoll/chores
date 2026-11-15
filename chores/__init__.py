@@ -9,7 +9,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import auth, db, logic, periods, mascots
 
-__version__ = "1.9.0"
+__version__ = "1.10.0"
 
 
 def _env_bool(name, default):
@@ -55,7 +55,7 @@ def create_app(test_config=None):
     app.before_request(auth.load_user)
     app.before_request(auth.check_csrf)
 
-    from . import admin, api, cms, views
+    from . import admin, api, cms, thanks, views
     app.register_blueprint(api.bp)
     app.register_blueprint(auth.bp)
     app.register_blueprint(views.bp)
@@ -70,6 +70,8 @@ def create_app(test_config=None):
             "csrf_token": auth.csrf_token,
             "run_token": lambda: secrets.token_hex(16),
             "owner_label": logic.owner_label,
+            "thanks_state": thanks.state,
+            "thanks_helpers": thanks.helpers,
             "FREQ_LABELS": periods.FREQ_LABELS,
             "MONTHS": periods.MONTHS,
             "version": __version__,

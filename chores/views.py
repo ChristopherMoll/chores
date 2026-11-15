@@ -6,7 +6,7 @@ import re
 from flask import (Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template, request,
                    url_for)
 
-from . import logic, periods, push, reminders, voice, scheduling, planning
+from . import logic, periods, push, reminders, thanks, voice, scheduling, planning
 from .auth import login_required, safe_next
 from .db import get_db
 
@@ -43,11 +43,16 @@ def person(username):
     selected = request.args.get("view", "today")
     if selected not in views:
         selected = "today"
+    query = request.args.get("q", "")
+    if own and g.user["role"] == "member" and logic.search_words(query):
+        views["search"] = logic.search_view(g.user, query, d)
+        selected = "search"
     return render_template(
         "dashboard.html",
         nags=reminders.task_ids_for(g.user["id"]),
         who=who, own=own, dash=dash, today=d,
         away=planning.is_away(who["id"], d),
+        thanks_notes=thanks.pending(g.user) if own else [],
         task_views=views, selected=selected, current_view=views[selected],
     )
 
@@ -67,8 +72,12 @@ def toggle(task_id):
     expected_period = request.form.get("period")
     undo_id = request.form.get("completion_id", type=int) if state == "0" else None
     undo = get_db().execute("SELECT * FROM completions WHERE id=? AND task_id=?", (undo_id, task_id)).fetchone() if undo_id else None
+    doer = g.user
     if undo_id and undo and undo["user_id"] != g.user["id"]:
-        return (jsonify(ok=False, error="Only the person who crossed this off can undo it."), 403) if wants_json else abort(403)
+        if not thanks.logged_by(g.user, undo["id"]):
+            return (jsonify(ok=False, error="Only the person who crossed this off can undo it."), 403) if wants_json else abort(403)
+        # You recorded this for them, so you can take it back as they could.
+        doer = get_db().execute("SELECT * FROM users WHERE id=?", (undo["user_id"],)).fetchone()
     override = undo["period_key"] if undo else expected_period if undo_id and expected_period else None
     if override and state == "0":
         linked = get_db().execute("SELECT id FROM task_occurrences WHERE task_id=? AND occurrence_key=?", (task_id, override)).fetchone()
@@ -86,13 +95,19 @@ def toggle(task_id):
     effective = scheduling.occurrence_task(occurrence) if occurrence else task
     if cover and not logic.can_steal(g.user, effective):
         abort(403)
+    credit = request.form.get("credit", "")
+    if credit:   # "Andrea did this": they get the completion and a thank-you
+        doer = logic.user_by_name(credit)
+        if (cover or state != "1" or not doer or doer["role"] != "member" or doer["id"] == g.user["id"]
+                or not thanks.can_credit(g.user, effective)):
+            abort(403)
     before = get_db().execute("SELECT id FROM completions WHERE task_id=? AND period_key=?", (task_id, actual_period)).fetchone()
     try:
         if not occurrence_id and task["frequency"] in ("selected", "sequence"):
             occurrence = scheduling.resolve(task)
             occurrence_id = occurrence["id"]
-        logic.toggle(g.user, task, desired_done=None if state is None else state == "1", occurrence_id=occurrence_id,
-                     early=request.form.get("early") == "1", steal=cover, period_override=override,
+        logic.toggle(doer, task, desired_done=None if state is None else state == "1", occurrence_id=occurrence_id,
+                     early=request.form.get("early") == "1", steal=cover or bool(credit), period_override=override,
                      expected_period=actual_period if expected_period else None)
     except (PermissionError, ValueError) as e:
         if wants_json:
@@ -102,6 +117,11 @@ def toggle(task_id):
     if cover and not before:
         completed = get_db().execute("SELECT id,user_id FROM completions WHERE task_id=? AND period_key=?", (task_id, actual_period)).fetchone()
         voice.notify_cover(g.user, effective, completed)
+    thanked = None
+    if credit and not before:
+        completed = get_db().execute("SELECT id,user_id FROM completions WHERE task_id=? AND period_key=?", (task_id, actual_period)).fetchone()
+        if completed and completed["user_id"] == doer["id"]:
+            thanked = thanks.give(g.user, completed["id"], logged=True)
     if wants_json:
         d = periods.today()
         board_user = logic.user_by_name(request.form.get("board_user", g.user["username"]))
@@ -111,9 +131,12 @@ def toggle(task_id):
         dash = logic.dashboard(board_user["username"], d)
         views = logic.task_views(dash, d)
         selected = request.form.get("view", "today")
+        query = request.form.get("q", "")
+        if selected == "search" and own and g.user["role"] == "member" and logic.search_words(query):
+            views["search"] = logic.search_view(g.user, query, d)   # keep the results on screen after a tick
         if selected not in views:
             selected = "today"
-        linked = get_db().execute("SELECT id FROM task_occurrences WHERE task_id=? AND occurrence_key=?", (task_id, actual_period)).fetchone()
+        linked =get_db().execute("SELECT id FROM task_occurrences WHERE task_id=? AND occurrence_key=?", (task_id, actual_period)).fetchone()
         used_occurrence = scheduling.get_occurrence(occurrence_id or linked["id"]) if occurrence_id or linked else None
         used_key = actual_period
         completion = get_db().execute(
@@ -127,9 +150,11 @@ def toggle(task_id):
                 ready = scheduling.local(following["ready_at"])
                 next_step = {"name": scheduling.occurrence_task(following)["name"], "at": ready.strftime('%a ') + periods.format_time(ready.time())}
         today = views["today"]["progress"]
+        logged = bool(completion and thanks.logged_by(g.user, completion["id"]))
         return jsonify(ok=True, done=bool(completion), points=completion["points"] if completion else 0,
                        by=completion["doer"] if completion else g.user["display_name"],
-                       can_undo=bool(completion and completion["user_id"] == g.user["id"]),
+                       can_undo=bool(completion and completion["user_id"] == g.user["id"]) or logged,
+                       credited=completion["doer"] if logged else None, thanks_sent=thanked["sent"] if thanked else None,
                        today=today,
                        counts={key: view["remaining"] for key, view in views.items()},
                        occurrence_id=used_occurrence["id"] if used_occurrence else None, next_step=next_step,
@@ -142,6 +167,29 @@ def toggle(task_id):
                                                       task_back=request.form.get("return_to", "/compare"))
                        if request.form.get("surface") == "together" else None,
                        name=task["name"])
+    return redirect(_back())
+
+
+@bp.post("/completions/<int:completion_id>/thank")
+@login_required
+def thank(completion_id):
+    wants_json = request.headers.get("Accept", "").startswith("application/json")
+    try:
+        result = thanks.give(g.user, completion_id)
+    except PermissionError as e:
+        if wants_json:
+            return jsonify(ok=False, error=str(e)), 403
+        abort(403)
+    if wants_json:
+        return jsonify(ok=True, message=thanks.confirmation(result), **result)
+    flash(thanks.confirmation(result), "ok")
+    return redirect(_back())
+
+
+@bp.post("/thanks/seen")
+@login_required
+def thanks_seen():
+    thanks.mark_seen(g.user)
     return redirect(_back())
 
 

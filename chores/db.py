@@ -202,6 +202,14 @@ CREATE TABLE IF NOT EXISTS quick_add_requests (
 CREATE TABLE IF NOT EXISTS cover_notices (
     completion_id INTEGER PRIMARY KEY REFERENCES completions(id) ON DELETE CASCADE
 );
+-- One thank-you per completion. logged = 1 when the sender also recorded the work on the doer's behalf.
+CREATE TABLE IF NOT EXISTS thanks (
+    completion_id INTEGER PRIMARY KEY REFERENCES completions(id) ON DELETE CASCADE,
+    from_user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    logged        INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT    NOT NULL,
+    seen_at       TEXT
+);
 """
 
 SCHEMA_VERSION = "4"

@@ -230,8 +230,7 @@ def task_views(dash, d=None):
         if start:
             view["rows"] = [r for r in view["rows"] if not (r.get("occurrence_id") and r["done"]
                             and r["completion"]["done_on"] < start.isoformat())]
-        view["rows"] = [dict(r, due=None if r["task"]["frequency"] == "daily" and not r["task"]["due_time"] else r["due"] if r.get("occurrence_id") or r.get("skipped") or r["done"] else periods.due_info(r["task"], datetime.combine(d, periods.now().time()), explicit_only=False))
-                        for r in view["rows"]]
+        view["rows"] = [_list_row(r, d) for r in view["rows"]]
         view["rows"] = sorted(collapse_missed(view["rows"], d), key=row_sort_key)
         view["progress"] = progress([r for r in view["rows"] if not r.get("blocked") and (key != "today" or not r.get("waiting"))])
         view["open"] = [r for r in view["rows"] if not r["done"] and not r.get("skipped") and not r.get("waiting") and not r.get("blocked")]
@@ -240,6 +239,93 @@ def task_views(dash, d=None):
         view["completed"] = [r for r in view["rows"] if r["done"]]
         view["skipped"] = [r for r in view["rows"] if r.get("skipped")]
     return views
+
+
+def _list_row(row, d):
+    """A board row with the due label lists show: nothing for untimed daily routines, implied deadlines otherwise."""
+    task = row["task"]
+    if task["frequency"] == "daily" and not task["due_time"]:
+        due = None
+    elif row.get("occurrence_id") or row.get("skipped") or row["done"]:
+        due = row["due"]
+    else:
+        due = periods.due_info(task, datetime.combine(d, periods.now().time()), explicit_only=False)
+    return dict(row, due=due)
+
+
+# ------------------------------------------------------------------ search ---
+
+SEARCH_MAX = 80
+
+
+def search_words(query):
+    """Lower-case words of a search, punctuation ignored, so "dog's" finds "Dogs"."""
+    return _plain(query[:SEARCH_MAX]).split()
+
+
+def _plain(text):
+    text = (text or "").casefold().replace("'", "").replace("’", "")
+    return " ".join("".join(ch if ch.isalnum() else " " for ch in text).split())
+
+
+def _search_rank(task, words):
+    """How well a task fits, best first: 0 whole words of its name or a nickname, 1 word beginnings,
+    2 anywhere in a name ("car" in "Childcare"), 3 only in its description, notes or group. None: no match."""
+    task = dict(task)   # a row, or the snapshot a sequence run keeps
+    names = _plain(task["name"] + " " + (task.get("aliases") or ""))
+    name_words = names.split()
+
+    def fit(word):
+        return (0 if word in name_words else 1 if any(n.startswith(word) for n in name_words)
+                else 2 if word in names else None)
+    fits = [fit(w) for w in words]
+    if None not in fits:
+        return max(fits)
+    everything = " ".join([names] + [_plain(task.get(field)) for field in ("description", "notes", "grp")])
+    return 3 if all(w in everything for w in words) else None
+
+
+def search_view(user, query, d=None):
+    """Every active task in the household matching `query`, whichever list it normally lives on.
+
+    Shaped like one of task_views()'s lists so the same template and cross-off flow apply.
+    A partner's task is included (marked show_owner) because a member may cover it.
+    """
+    d = d or periods.today()
+    words = search_words(query)
+    owners = [m["username"] for m in members()] + [SHARED, VOLUNTEER]
+    found = []
+    if words:
+        for group in board(owners, d).values():
+            for row in group:
+                rank = _search_rank(row["task"], words)
+                if rank is not None:
+                    found.append(dict(_list_row(row, d), search_rank=rank,
+                                      show_owner=row["task"]["owner"] not in (user["username"], SHARED, VOLUNTEER)))
+    rows = collapse_missed(found, d)
+    # A selected-days task has a row per future date. One is enough: its next date,
+    # and only when nothing earlier is still on the list for that task.
+    def future(row):
+        return (row.get("source") == "selected" and not row.get("run_id") and not row["done"]
+                and not row.get("skipped") and row["scheduled_date"] > d)
+    current = {r["task"]["id"] for r in rows if not future(r)}
+    nearest = {}
+    for row in rows:
+        if future(row) and row["task"]["id"] not in current:
+            best = nearest.get(row["task"]["id"])
+            if not best or row["scheduled_date"] < best["scheduled_date"]:
+                nearest[row["task"]["id"]] = row
+    rows = [r for r in rows if not future(r) or nearest.get(r["task"]["id"]) is r]
+    rows.sort(key=lambda r: (r["search_rank"], row_sort_key(r)))
+    view = {"label": "Search", "query": " ".join(query.split())[:SEARCH_MAX], "rows": rows,
+            "hint": "Tasks from every list, including Shared, Needs Volunteer and your partner's.",
+            "progress": progress(rows),
+            "open": [r for r in rows if not r["done"] and not r.get("skipped") and not r.get("waiting") and not r.get("blocked")],
+            "upcoming": [r for r in rows if not r["done"] and not r.get("skipped") and (r.get("waiting") or r.get("blocked"))],
+            "completed": [r for r in rows if r["done"]],
+            "skipped": [r for r in rows if r.get("skipped")]}
+    view["remaining"] = len(view["open"]) + len(view["upcoming"])
+    return view
 
 
 # ------------------------------------------------------------- crossing off ---

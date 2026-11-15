@@ -2,6 +2,14 @@
 
 All notable changes to this project are recorded here. Versions follow [semantic versioning](https://semver.org): the major number goes up for changes that need a manual step (a data migration or config change), the minor number for new features, and the patch number for fixes.
 
+## [1.10.0] - 2026-11-15
+
+No manual step. The update adds one small table for thank-yous on its own.
+
+### Added
+- **Find any task:** a search box at the top of My tasks finds a task on any list (Today, This week, This month, One-off, As needed, repeating jobs that aren't due yet), along with Shared and Needs Volunteer tasks and your partner's. Results appear as you type and can be crossed off, undone or opened right there. It matches names and Also called nicknames first, then descriptions. A partner's task shows whose it is and offers I took care of this. Clear search returns to the list you were on. Without JavaScript the box works as a normal form.
+- **Thank-yous:** when your partner did something from your list, open the task and choose **(Name) did this · send thanks**. They get the completion and the points, and a notification that you said thank you. If they have no notifications set up, the thank-you waits at the top of their My tasks until they tap You're welcome. You can undo a completion you recorded this way. When they crossed the task off themselves, **Say thank you** appears under it instead. One thank-you per completion.
+
 ## [1.9.0] - 2026-11-11
 
 The normal update upgrades SQLite to schema 4. Existing tasks, completions, reminders, voice keys and sequence runs are preserved. No manual migration is needed.
