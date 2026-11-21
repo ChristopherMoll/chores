@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import task_row, icon with context %}
+{% block title %}{{ row.task.name }}{% endblock %}
+{% block content %}
+<div class="detail-navigation"><a class="text-action" href="{{ back }}" data-back-to-list>{{ icon('arrow') }} Back</a><span class="muted small">Task details</span></div>
+<header class="detail-heading"><h1>{{ row.task.name }}</h1><p class="muted">{{ owner_label(row.task.owner) }}{% if row.scheduled_date %} · {{ row.scheduled_date|human_date }}{% endif %}</p></header>
+<section id="task-detail-region" data-detail-task="{{ row.task.id }}"><ul class="tasks detail-list">{{ task_row(row, own, g.user, expanded=true) }}</ul></section>
+{% endblock %}

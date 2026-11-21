@@ -44,16 +44,18 @@ Log in and you land on **My tasks**. On an iPhone the four main destinations are
 
 - **Today** combines daily routines and tasks due today or overdue. Overdue and timed work comes first. Older selected dates are grouped together; progress counts the displayed actionable dates. Weekly, monthly, interval, yearly and one-off deadlines are included when due.
 - **This week** shows weekly tasks and monthly or one-off deadlines through the end of the household's week. **This month** shows monthly tasks and one-off deadlines through month end. Daily routines stay in Today.
-- **One-off** includes tasks without a due date, so they remain easy to find. **As needed** holds your unscheduled tasks. All five lists sit near the top on phones and desktop. As needed shows Last done instead of a progress bar.
-- **Find any task** searches every list at once, for when you've done something that isn't in Today. Type part of its name or one of its **Also called** nicknames and tick it in the results. Shared and Needs Volunteer tasks are included, and your partner's appear with **I took care of this**. A repeating job that isn't due yet can be ticked early; a future selected day or a waiting sequence step is listed under Coming up with **Done early** in its details. Follow-up steps only appear once their sequence has started. **Clear search** returns to your list.
+- **One-off** includes tasks without a due date, so they remain easy to find. **As needed** holds your unscheduled tasks. Tap the list title (for example, **Today**) to switch between the five lists. As needed shows Last done instead of a progress bar.
+- **Search** (the magnifying glass) searches every list live as you type, for when you've done something that isn't in Today. Type part of its name or one of its **Also called** nicknames and tick it in the results. Shared and Needs Volunteer tasks are included, and your partner's appear with **I took care of this**. A repeating job that isn't due yet can be ticked early; a future selected day or a waiting sequence step is listed under Coming up with **Done early** in its details. Follow-up steps only appear once their sequence has started. **Clear** returns to your list; **Cancel** closes search.
 - **Tap the circle** to mark a task done. An Undo action stays in the feedback message until dismissed or replaced. Expand **Completed → Review & undo** and choose **Undo completion** beneath any task you crossed off to fix several mistakes independently; task details can stay closed. The UI has no one-task or one-hour limit for displayed completions. Only the actual doer can undo a shared task. For sequences, undo later completed steps first.
-- **Tap a task's name** to see what it covers, what done looks like, reminder settings, and editing. Generated codes stay in Manage tasks. Task details show active minutes each time or the monthly effort estimate.
-- **Together** contains household contributions, assigned effort, activity, and volunteer opportunities. Volunteer completions still earn 50% bonus points. Friendly competition is available in a closed disclosure.
-- **Progress** contains your weekly contributions, daily history, current milestones, and recent activity. **More** contains management, account links, reminder settings, installation help, and device-local appearance and quiet-celebration preferences.
+- **Tap a task's name** for its focused detail screen on iPhone. Desktop expands the details inline. See what it covers and what done looks like; **Remind me** opens a sheet on iPhone. **More actions** contains editing, skipping, recording yesterday, and crediting your partner. Swipe left on a row for optional Details and Remind me shortcuts; both are also available by tapping the name. Generated codes stay in Manage tasks. Task details show active minutes each time or the monthly effort estimate.
+- **Together** leads with shared work for today, volunteer opportunities, and household activity. **Household overview** holds contributions and assigned effort. Volunteer completions still earn 50% bonus points. Friendly competition is available in a closed disclosure.
+- **Progress** contains your weekly contributions, daily history, current milestones, and recent activity. **Settings** contains management, account links, reminder settings, installation help, and device-local appearance and quiet-celebration preferences.
+
+**Add task** opens a short sheet with a task name and optional due date. The new task is assigned to you and appears in One-off. Cancelling keeps the draft while you stay on this page. Task details and bottom tabs preserve your list position when you return.
 
 The mole celebrates a completed Today list and otherwise stays encouraging. Saving feedback comes from the server. An interrupted request can be retried safely, and open dashboards and Together check for changes about once a minute. Checks preserve disclosures, avoid focused forms and unsaved drafts, and re-read stale state after returning from the background. Offline completions are not queued.
 
-The vector mole occasionally blinks and breathes, nods when you complete a task, and celebrates when today's list is finished. Other poses animate their own small details. Motion pauses when the app is hidden and stops for illustrations outside the visible screen. **More → Quiet celebrations** disables animations while keeping all feedback and task actions. The device's **Reduce Motion** preference also disables motion, including JavaScript transitions. Scrolling away from a pressed control cancels its pressed appearance; tasks are only completed by an intentional activation, after the server confirms the save.
+The vector mole occasionally blinks and breathes, nods when you complete a task, and celebrates when today's list is finished. Other poses animate their own small details. Motion pauses when the app is hidden and stops for illustrations outside the visible screen. **Settings → Quiet celebrations** disables animations while keeping all feedback and task actions. The device's **Reduce Motion** preference also disables motion, including JavaScript transitions. Scrolling away from a pressed control cancels its pressed appearance; tasks are only completed by an intentional activation, after the server confirms the save.
 
 The original mascot SVGs live in `chores/static/mascot`. To update their prepared inline versions, run `python tools/prepare_mascots.py` after reviewing the group map in that tool. It preserves the originals, removes export metadata and the background canvas, converts embedded fill styles to SVG presentation attributes, and labels the parts used by animation. The application reads the prepared versions directly; normal installation needs no asset build step.
 
@@ -79,7 +81,7 @@ In the full task editor choose **Every N weeks / months**, set the interval and 
 
 Open a task's details for **Did it yesterday** to record forgotten work with yesterday's date and the usual points. Today's daily tick stays separate; weekly, monthly and one-off work stays completed for its period. Selected days must actually have been scheduled yesterday. Sequences use their run's corrections because later timers depend on the original completion time. Recently taken care of in Progress offers Undo for historical corrections too.
 
-Under **More**, add inclusive **Away** dates. This pauses only your reminders, sequence nudges and evening summaries and protects your streak; tasks remain visible for your partner. Away days add no points or streak days. Remove the dates to end the pause. On a partner's board, **I took care of this** gives you credit, tells the owner when notifications are available, and lets you undo your own completion. The other way round, when your partner did something from *your* list (your own tasks or Shared ones), open the task and choose **(Name) did this · send thanks**: they get the completion and the points, plus a notification saying you said thank you. Without notifications, the thank-you waits at the top of their My tasks until they tap **You're welcome**. You can undo a completion you recorded for them. If they crossed it off themselves, **Say thank you** appears under the finished task. Each completion can be thanked once.
+Under **Settings**, add inclusive **Away** dates. This pauses only your reminders, sequence nudges and evening summaries and protects your streak; tasks remain visible for your partner. Away days add no points or streak days. Remove the dates to end the pause. On a partner's board, **I took care of this** gives you credit, tells the owner when notifications are available, and lets you undo your own completion. The other way round, when your partner did something from *your* list (your own tasks or Shared ones), open the task and choose **(Name) did this · send thanks**: they get the completion and the points, plus a notification saying you said thank you. Without notifications, the thank-you waits at the top of their My tasks until they tap **You're welcome**. You can undo a completion you recorded for them. If they crossed it off themselves, **Say thank you** appears under the finished task. Each completion can be thanked once.
 
 ### Selected days and timed sequences
 
@@ -96,7 +98,7 @@ Completing Wash at 10:00 makes Dry ready at 11:00. Completing Dry late, at 11:20
 - Template edits affect future runs. Existing runs retain their original names, owners, effort estimates and delays. Archive referenced tasks to preserve runs; permanent deletion requires removing sequence links and finishing or cancelling active runs first.
 - Each real step earns its own points. Enter active work in the step's minutes estimate, excluding machine waiting time; the sequence group earns no extra points. Unlinked sequence steps and steps used only by one-offs are excluded from recurring assigned workload.
 
-Ready notifications are on by default and personal: the moment a follow-up step's wait is over, each person it belongs to is told (within the minute, on every device where they enabled notifications in **More**). That covers your own and Shared steps; a volunteer run's doer receives its volunteer follow-ups. To stop them for one sequence, untick the checkbox in the sequence editor or use the button on a run page. **More → Sequence notifications you turned off** lists those sequences and turns them back on. Away dates pause them.
+Ready notifications are on by default and personal: the moment a follow-up step's wait is over, each person it belongs to is told (within the minute, on every device where they enabled notifications in **Settings**). That covers your own and Shared steps; a volunteer run's doer receives its volunteer follow-ups. To stop them for one sequence, untick the checkbox in the sequence editor or use the button on a run page. **Settings → Sequence notifications you turned off** lists those sequences and turns them back on. Away dates pause them.
 
 Siri understands ready selected-day occurrences and sequence steps. If multiple missed dates or laundry loads are ready for the same task, it takes the oldest ready one. Distinct chores with similar names still require clarification. It cannot complete a waiting or blocked step by voice. A repeated command for a completed step is safe when it still identifies the same occurrence; naming a task with another ready occurrence refers to that ready work.
 
@@ -106,7 +108,7 @@ Any task can say when it's due: a date for a one-off, a day of the week for a we
 
 ### Remind me
 
-Tap a task's name, then **Remind me**, and choose when you'd like a push notification if it isn't done yet, such as "1 day before at 9:00 am" or "30 minutes before". You can add several to one task. They're yours alone: your partner doesn't get them, and you can set one on any task. A bell marks tasks you have a reminder on. Notification permission is offered here and in More, rather than on the main task screen.
+Tap a task's name, then **Remind me**, and choose when you'd like a push notification if it isn't done yet, such as "1 day before at 9:00 am" or "30 minutes before". You can add several to one task. They're yours alone: your partner doesn't get them, and you can set one on any task. A bell marks tasks you have a reminder on. Notification permission is offered here and in Settings, rather than on the main task screen.
 
 - A task needs a due date to count back from. Daily tasks are due at their due-by time, or the end of the day if none is set. Weekly and monthly tasks with no due day are due on the last day of their period. As-needed tasks and one-offs with no date can't have reminders.
 - If the task is crossed off by then, including by your partner on a Shared task, the reminder is skipped.
@@ -119,15 +121,15 @@ iOS only allows push for web apps saved to the home screen, and needs iOS 16.4 o
 
 1. Open `https://chores.moll.casa` in your iPhone browser, open the sharing menu (possibly inside More), then choose **Add to Home Screen**. If shown, leave **Open as Web App** on.
 2. Open MoleChores **from the new icon** and sign in if asked.
-3. In **More**, or on a task's **Remind me** page, tap **Enable notifications** and allow them. **Send a test** confirms it works.
+3. In **Settings**, or on a task's **Remind me** page, tap **Enable notifications** and allow them. **Send a test** confirms it works.
 
 Do this on each device you want reminders on. Push needs the real HTTPS site, so it won't work over plain-HTTP LAN testing.
 
-Reminder pages put **Morning of (9 am)**, **Evening before (6 pm)** and **An hour before** ahead of the custom settings. Weekly and monthly nudges never fire before their period opens. In **More**, opt into a personal evening summary and choose its time. It stays quiet when today is handled and during your Away dates.
+Reminder pages put **Morning of (9 am)**, **Evening before (6 pm)** and **An hour before** ahead of the custom settings. Weekly and monthly nudges never fire before their period opens. In **Settings**, opt into a personal evening summary and choose its time. It stays quiet when today is handled and during your Away dates.
 
 ### Siri
 
-Say **"Hey Siri, I did a chore"**, then name it, and Siri crosses it off and tells you how many are left today. It works through a shortcut you build once in Apple's Shortcuts app. **More → Siri** walks through it and gives you a personal voice key for each iPhone. Copy buttons are available for the key and API address; shortcut setup remains manual.
+Say **"Hey Siri, I did a chore"**, then name it, and Siri crosses it off and tells you how many are left today. It works through a shortcut you build once in Apple's Shortcuts app. **Settings → Siri** walks through it and gives you a personal voice key for each iPhone. Copy buttons are available for the key and API address; shortcut setup remains manual.
 
 - Matching is forgiving: "I did the dishes" or "took out the trash" find *Dishes* and *Trash & Recycling*. Nicknames in the task editor's **Also called** field teach Siri your phrasing. Starter phrases include walked the dog, changed the filters and tidied up; dried the laundry and put away the laundry remain distinct. If two different tasks sound alike, Siri asks which you meant and changes nothing.
 - Your own and Shared tasks come first. If you name your partner's task, Siri crosses it off anyway, since you've probably already done it, and sends your partner an "A little help" notification. You get the points. If your partner has no notifications set up, Siri tells you to mention it yourself.
@@ -135,7 +137,7 @@ Say **"Hey Siri, I did a chore"**, then name it, and Siri crosses it off and tel
 - Saying the same thing twice is safe. "Undo" puts back your most recent cross-off from the last hour; undoing a stolen task sends your partner a "Never mind" notification.
 - Optional extra shortcuts send fixed words: "what's left", "undo" or "score". Name the first one **What chores do I have left today**, and Siri answers with your remaining daily chores, then anything due today, then anything overdue, matching the app's Today list. It reads up to 10 names and says how many more are in the app.
 - Phrases that match no task are kept for 30 days and shown to admins on the Admin page, to help with renaming tasks.
-- Removing a key under **More → Siri** disconnects that shortcut immediately. Admin accounts can't have voice keys.
+- Removing a key under **Settings → Siri** disconnects that shortcut immediately. Admin accounts can't have voice keys.
 
 ### Shared tasks
 
@@ -147,17 +149,17 @@ Use **See tasks** on a person's card in Together. You'll see their task lists wi
 
 ### Together and Progress
 
-Together leads with tasks completed, points earned, and volunteer contributions for the whole household this week or month. Shared completions count once in those totals. Each person's card shows their contributions, recurring-list progress, and estimated assigned hours. Friendly competition remains available in a closed disclosure. Expand **A little extra help** for volunteer tasks, including as-needed work. Progress holds your personal history, current badges, and activity.
+Together leads with **Shared today** and **Ways to help**. The first five volunteer tasks are shown, with the remainder under **Show more**. Recent household activity follows. Expand **Household overview** for tasks completed, points, volunteer contributions, each person's recurring-list progress and assigned hours. Shared completions count once in those totals. Friendly competition remains in its own disclosure. Progress holds your personal history, current milestones, and activity.
 
 ### Changing your password
 
-Tap your initial in the top-right corner, then **Account & password**.
+Open **Settings**, then **Account & password**. Desktop also has an account menu in the sidebar.
 
 ---
 
 ## 3. Managing tasks (for everyone) and the admin area
 
-**Manage tasks** in the desktop sidebar, or **More → Manage tasks** on an iPhone, is open to everyone who's logged in. Chris and Andrea re-deal, re-estimate and edit cards from their own accounts. Re-dealing is a household conversation, not an admin job.
+**Manage tasks** in the desktop sidebar, or **Settings → Manage tasks** on an iPhone, is open to everyone who's logged in. Chris and Andrea re-deal, re-estimate and edit cards from their own accounts. Re-dealing is a household conversation, not an admin job.
 
 The **admin** account is kept separate for technical settings only (see [The admin area](#the-admin-area) below). It can still use Manage, but you shouldn't need it for that.
 
@@ -170,7 +172,7 @@ All 109 cards (plus any you add) are in one table. For each row you can change:
 - **Hours / mo:** your estimate of total monthly effort, including the noticing and planning, not just the doing.
 - **Include:** uncheck to archive a task without losing its history. Archived tasks disappear from task lists.
 
-Change as many rows as you like, then press **Save changes**. The save bar counts changed tasks and offers Discard changes. A workload preview includes tasks outside the active filters and splits shared estimates equally; one-offs are excluded. Search and filter by group, schedule, owner, or inclusion. Desktop users can select rows and apply one owner to the selection. On phones the table becomes editable task cards.
+Change as many rows as you like, then press **Save changes**. The save bar counts changed tasks and offers Discard changes. A workload preview includes tasks outside the active filters and splits shared estimates equally; one-offs are excluded. Search and filter by group, schedule, owner, or inclusion; results update live without Apply. Filtering pauses while the table or side editor has unsaved edits. Save or discard to apply the requested filters. If JavaScript is unavailable, Apply still submits the filters normally. Desktop users can select rows and apply one owner to the selection. On phones the table becomes editable task cards.
 
 ### Editing a card
 
@@ -554,7 +556,7 @@ After pulling a version with schema changes, run `python manage.py migrate`.
 - **"Each of you" cards are one shared tick.** Self-Care and similar cards are meant to be held by each person for themselves, but as *Shared* tasks one tick covers both. If that matters, add a personal copy for each person (for example C22-C for Chris and C22-A for Andrea) and delete the shared one.
 - **Streaks use today's assignments and schedule.** Re-dealing a routine or changing selected days can change the historical streak.
 - **The login lockout is in memory** and resets when the service restarts. That's fine for a two-person household.
-- **Reminders are personal and opt-in**, apart from a sequence's ready notifications, which are on until you turn them off. More also offers an evening summary at a household-time-zone clock time, once per day when tasks remain. It pauses during Away dates and needs notifications enabled on a device.
+- **Reminders are personal and opt-in**, apart from a sequence's ready notifications, which are on until you turn them off. Settings also offers an evening summary at a household-time-zone clock time, once per day when tasks remain. It pauses during Away dates and needs notifications enabled on a device.
 - **Each reminder fires once per occurrence.** It doesn't repeat until the task is done. Add several reminders if you want more than one nudge.
 - **Finished one-offs stay in the Manage grid** so their history is kept. Delete or turn them off to tidy up.
 - **Logging out doesn't turn off notifications on that device.** Use **Turn off** first. If someone else logs in and enables them, the device moves to that person.

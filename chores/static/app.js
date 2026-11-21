@@ -92,18 +92,18 @@
     const response = await fetch(location.href, {cache: "no-store", credentials: "same-origin"});
     if (!response.ok || response.redirected) { needsRefresh = true; return; }
     const page = new DOMParser().parseFromString(await response.text(), "text/html");
-    if (background && (savingTask || revision !== taskRevision || query("form.dirty") || document.activeElement?.closest("form"))) {
+    if (background && (savingTask || revision !== taskRevision || query(".search-panel[aria-busy=true]") || query("form.dirty") || document.activeElement?.closest("form"))) {
       needsRefresh = true;
       return;
     }
     const motion = window.MoleMotion?.capture();
     const expanded = all(".task-body[open]").map(el => el.closest(".task").dataset.rowKey);
     const closedRuns = all("[data-run-group]:not([open])").map(el => el.dataset.runGroup);
-    const openDisclosures = all(".completed-group[open]").map(el => el.dataset.disclosure);
+    const openDisclosures = all("[data-disclosure][open]").map(el => el.dataset.disclosure);
     const focused = document.activeElement;
     const focusRow = focused?.closest(".task")?.dataset.rowKey;
     const focusDisclosure = focused?.closest("[data-disclosure]")?.dataset.disclosure;
-    ["tasks-region", "volunteer-region", "sequence-run-region", "sequence-heading", "sequence-actions", "occurrence-region", "household-summary", "household-feed"].forEach(id => {
+    ["tasks-region", "volunteer-region", "shared-region", "task-detail-region", "sequence-run-region", "sequence-heading", "sequence-actions", "occurrence-region", "household-summary", "household-feed"].forEach(id => {
       const current = document.getElementById(id), next = page.getElementById(id);
       if (current && next) { current.replaceWith(next); paint(next); setupForms(next); }
     });
@@ -127,9 +127,10 @@
     const row = completionId ? query('[data-completion-id="' + completionId + '"]') : document.getElementById(occurrenceId ? 'occurrence-' + occurrenceId : 'task-' + taskId);
     const nextIndex = row ? all(".tasks > .task:not(.done)").indexOf(row) : 0;
     const expandedIds = all(".task-body[open]").map(el => el.closest(".task").dataset.rowKey);
-    const openDisclosures = all(".completed-group[open]").map(el => el.dataset.disclosure);
+    const openDisclosures = all("[data-disclosure][open]").map(el => el.dataset.disclosure);
     const closedRuns = all("[data-run-group]:not([open])").map(el => el.dataset.runGroup);
     row?.classList.add("saving");
+    row?.setAttribute("aria-busy", "true");
     all(".tick-form button").forEach(button => { button.dataset.wasDisabled = String(button.disabled); button.disabled = true; });
     const data = new FormData();
     data.set("done", desired ? "1" : "0");
@@ -164,7 +165,7 @@
       }
       const volunteerRegion = query("#volunteer-region");
       if (volunteerRegion) { volunteerRegion.innerHTML = result.volunteer_html; paint(volunteerRegion); }
-      if (query("#sequence-run-region, #occurrence-region")) await refreshScheduledRegions();
+      if (query("#sequence-run-region, #occurrence-region, #task-detail-region, #shared-region")) await refreshScheduledRegions();
       else { if (taskRegion) setupForms(taskRegion); if (volunteerRegion) setupForms(volunteerRegion); }
       openDisclosures.forEach(key => query('[data-disclosure="' + key + '"]')?.setAttribute("open", ""));
       closedRuns.forEach(id => all('[data-run-group="' + id + '"]').forEach(el => el.removeAttribute("open")));
@@ -174,7 +175,7 @@
       const allDone = result.today.total > 0 && result.today.done === result.today.total;
       window.MoleMotion?.restore(motion);
       window.MoleMotion?.react(result.done && result.can_undo, allDone);
-      if (lede) lede.textContent = allDone ? "Today's list is taken care of." : result.today.total ? "A little at a time." : "A little breathing room today.";
+      if (lede) lede.textContent = allDone ? "Today's list is taken care of." : result.today.total ? "One thing at a time." : "A little breathing room today.";
       if (result.done) {
         const ownCompletion = result.can_undo;
         let message = ownCompletion ? (allDone && taskRegion ? "Today's list is taken care of. Enjoy the space you made." : "One more thing taken care of. +" + result.points + " points.") : result.by + " already took care of this. Thank you both.";
@@ -191,7 +192,7 @@
         const focus = restored || next || query("#toast-action:not([hidden])") || query("#toast-close");
         if (window.MoleMotion) window.MoleMotion.focusControl(focus); else focus?.focus({preventScroll: true});
       }
-      await refreshTogether();
+      if (!query("#shared-region")) await refreshTogether();
     } catch (error) {
       const retry = error.refresh ? () => location.reload() : error.noRetry ? null : () => setTask(url, desired, taskId, period, occurrenceId, early, completionId, cover, credit);
       toast(error.name === "AbortError" || error instanceof TypeError ? "Couldn't confirm the save. It's safe to try again." : error.message, "error", retry, error.refresh ? "Refresh list" : "Try again");
@@ -199,6 +200,7 @@
       clearTimeout(timeout);
       savingTask = false;
       row?.classList.remove("saving");
+      row?.removeAttribute("aria-busy");
       all(".tick-form button[data-was-disabled]").forEach(button => { button.disabled = button.dataset.wasDisabled === "true"; delete button.dataset.wasDisabled; });
     }
   }
@@ -235,8 +237,180 @@
   document.addEventListener("click", event => {
     const destructive = event.target.closest("[data-confirm]");
     if (destructive && !window.confirm(destructive.dataset.confirm)) event.preventDefault();
-    all("details.menu[open], details.tools-menu[open]").forEach(menu => { if (!menu.contains(event.target)) menu.open = false; });
+    all("details.menu[open], details.tools-menu[open], details.list-picker[open]").forEach(menu => { if (!menu.contains(event.target)) menu.open = false; });
   });
+
+  // A horizontal swipe reveals shortcuts; vertical scrolling never completes a task.
+  let taskGesture, suppressTaskClickUntil = 0;
+  document.addEventListener("pointerdown", event => {
+    const summary = event.target.closest("summary[data-task-detail]");
+    if (event.pointerType !== "touch" || !event.isPrimary || !summary || !matchMedia("(max-width:999px)").matches) return;
+    taskGesture = {summary, id:event.pointerId, x:event.clientX, y:event.clientY};
+  }, {passive:true});
+  document.addEventListener("pointerup", event => {
+    const gesture = taskGesture;
+    taskGesture = null;
+    if (!gesture || gesture.id !== event.pointerId) return;
+    const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
+    if (Math.abs(dx) < 65 || Math.abs(dy) > 30 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    suppressTaskClickUntil = Date.now() + 400;
+    const content = gesture.summary.closest(".task-content");
+    let shortcuts = query(".task-shortcuts", content);
+    if (dx > 0) { shortcuts?.remove(); return; }
+    all(".task-shortcuts").forEach(el => { if (el !== shortcuts) el.remove(); });
+    if (shortcuts) return;
+    shortcuts = document.createElement("div");
+    shortcuts.className = "task-detail-actions task-shortcuts";
+    shortcuts.setAttribute("role", "group"); shortcuts.setAttribute("aria-label", "Quick task actions");
+    const details = document.createElement("a");
+    details.className = "btn"; details.href = gesture.summary.dataset.taskDetail; details.textContent = "Details";
+    shortcuts.appendChild(details);
+    const reminder = query('.task-detail-actions a[href*="/remind"]', content);
+    if (reminder) { const link = reminder.cloneNode(true); link.className = "btn"; shortcuts.appendChild(link); }
+    const close = document.createElement("button");
+    close.type = "button"; close.className = "text-action"; close.textContent = "Close";
+    close.setAttribute("aria-label", "Hide quick task actions"); close.addEventListener("click", () => shortcuts.remove());
+    shortcuts.appendChild(close); content.appendChild(shortcuts);
+  }, {passive:true});
+  document.addEventListener("pointercancel", () => { taskGesture = null; }, {passive:true});
+
+  // iPhone details have their own screen; desktop keeps quick inline disclosures.
+  document.addEventListener("click", event => {
+    const summary = event.target.closest("summary[data-task-detail]");
+    if (!summary || !matchMedia("(max-width:999px)").matches || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    if (Date.now() < suppressTaskClickUntil) return;
+    location.assign(summary.dataset.taskDetail);
+  });
+
+  // Native dialog provides focus trapping, Escape, and a focused keyboard entry flow.
+  const capture = query("#capture-dialog");
+  if (capture && typeof capture.showModal === "function") {
+    capture.appendChild(query("#quick-capture"));
+    query(".capture-launch").hidden = false;
+    query("[data-close-capture]").hidden = false;
+    query("[data-open-capture]").addEventListener("click", () => {
+      capture.showModal(); document.body.classList.add("sheet-open");
+      query("#quick-task", capture).focus();
+    });
+    query("[data-close-capture]").addEventListener("click", () => capture.close());
+    capture.addEventListener("click", event => { if (event.target === capture) capture.close(); });
+    capture.addEventListener("close", () => {
+      document.body.classList.remove("sheet-open");
+      query("form", capture).classList.remove("dirty");
+      query("[data-open-capture]").focus({preventScroll:true});
+    });
+  }
+
+  // Reminder presets stay beside the task instead of sending iPhone users away.
+  let reminderSheet, reminderUrl, reminderBusy = false;
+  function renderReminder(page, message = "") {
+    const content = query("[data-reminder-content]", page);
+    if (!content) throw new Error("reminder");
+    reminderSheet.replaceChildren(content);
+    query("[data-close-reminder]", content).hidden = false;
+    query("[data-sheet-status]", content).textContent = message;
+    all("form", content).forEach(form => { if (!form.getAttribute("action")) form.action = reminderUrl; });
+    setupForms(content); paint(content);
+    const card = query("#push-card", content);
+    if (card) setupPush(card);
+  }
+  document.addEventListener("click", async event => {
+    if (event.target.closest("[data-close-reminder]")) { reminderSheet?.close(); return; }
+    const link = event.target.closest('.task-detail-actions a[href*="/remind"]');
+    if (!link || !matchMedia("(max-width:999px)").matches || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    if (typeof HTMLDialogElement === "undefined" || !HTMLDialogElement.prototype.showModal) return;
+    event.preventDefault();
+    if (reminderBusy) return;
+    reminderBusy = true;
+    reminderUrl = link.href;
+    link.setAttribute("aria-busy", "true");
+    try {
+      const response = await fetch(reminderUrl, {credentials:"same-origin", cache:"no-store"});
+      if (!response.ok || response.redirected) throw new Error("reminder");
+      const page = new DOMParser().parseFromString(await response.text(), "text/html");
+      if (!reminderSheet) {
+        reminderSheet = document.createElement("dialog");
+        reminderSheet.className = "capture-sheet reminder-sheet";
+        reminderSheet.setAttribute("aria-label", "Remind me");
+        document.body.appendChild(reminderSheet);
+        reminderSheet.addEventListener("close", () => {
+          document.body.classList.remove("sheet-open");
+          if (needsRefresh && navigator.onLine && !query("form.dirty")) {
+            needsRefresh = false;
+            refreshScheduledRegions(true).catch(() => { needsRefresh = true; });
+          }
+        });
+        reminderSheet.addEventListener("click", e => { if (e.target === reminderSheet) reminderSheet.close(); });
+      }
+      renderReminder(page);
+      reminderSheet.showModal(); document.body.classList.add("sheet-open");
+    } catch (_) { location.assign(reminderUrl); }
+    finally { reminderBusy = false; link.removeAttribute("aria-busy"); }
+  });
+  document.addEventListener("submit", async event => {
+    const form = event.target;
+    if (!reminderSheet?.contains(form)) return;
+    event.preventDefault();
+    if (reminderBusy) return;
+    const status = query("[data-sheet-status]", reminderSheet);
+    if (!navigator.onLine) { status.textContent = "You're offline. Reconnect, then try again."; return; }
+    reminderBusy = true;
+    const data = new FormData(form);
+    if (event.submitter?.name) data.set(event.submitter.name, event.submitter.value);
+    all("button", form).forEach(button => { button.disabled = true; });
+    status.textContent = "Saving…";
+    try {
+      const response = await fetch(form.action, {method:"POST", body:data, credentials:"same-origin"});
+      const page = new DOMParser().parseFromString(await response.text(), "text/html");
+      if (!response.ok) throw new Error("reminder");
+      renderReminder(page, all(".flash", page).map(el => el.textContent.trim()).join(" "));
+      needsRefresh = true;
+    } catch (_) {
+      status.textContent = "Couldn't confirm the save. Reconnect and try again; duplicate reminders won't be added.";
+      all("button", form).forEach(button => { button.disabled = false; });
+    } finally { reminderBusy = false; }
+  });
+
+  // Keep each destination's place, including a return from task details or editing.
+  const placePrefix = "molechores-place-" + document.body.dataset.userId + "-";
+  const tabKey = placePrefix + "tasks-url";
+  function rememberPlace() {
+    if (!document.body.dataset.userId) return;
+    try {
+      const key = location.pathname + location.search;
+      sessionStorage.setItem(placePrefix + key, JSON.stringify({
+        y: scrollY,
+        open: all("[data-disclosure][open]").map(el => el.dataset.disclosure),
+        closedRuns: all("[data-run-group]:not([open])").map(el => el.dataset.runGroup),
+        overview: !!query("#household-overview[open]")
+      }));
+      if (query('.dashboard[data-own="true"]')) sessionStorage.setItem(tabKey, key);
+    } catch (_) { /* Storage is optional in private browsing. */ }
+  }
+  function restorePlace() {
+    if (location.hash || !document.body.dataset.userId) return;
+    try {
+      const place = JSON.parse(sessionStorage.getItem(placePrefix + location.pathname + location.search) || "null");
+      if (!place) return;
+      for (const key of place.open || []) all("[data-disclosure]").filter(el => el.dataset.disclosure === key).forEach(el => { el.open = true; });
+      for (const key of place.closedRuns || []) all("[data-run-group]").filter(el => el.dataset.runGroup === key).forEach(el => { el.open = false; });
+      if (place.overview && query("#household-overview")) query("#household-overview").open = true;
+      scrollTo({top:place.y || 0, behavior:"instant"});
+    } catch (_) { /* A fresh view remains usable. */ }
+  }
+  window.addEventListener("pagehide", rememberPlace);
+  document.addEventListener("click", event => {
+    if (!event.target.closest("a, summary[data-task-detail]")) return;
+    rememberPlace();
+    const link = event.target.closest('.app-nav a[href="/"]');
+    if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    try {
+      const saved = new URL(sessionStorage.getItem(tabKey) || "/", location.origin);
+      if (saved.origin === location.origin && (saved.pathname === "/" || saved.pathname.startsWith("/people/"))) link.href = saved.pathname + saved.search;
+    } catch (_) { /* Use the default Today link. */ }
+  }, {capture:true});
+  requestAnimationFrame(restorePlace);
 
   document.addEventListener("click", async event => {
     const button = event.target.closest("[data-copy-from]");
@@ -255,6 +429,12 @@
   });
 
   function setupForms(scope = document) {
+    all("[data-at-time]", scope).forEach(at => {
+      const unit = query('select[name="unit"]', at.closest("form"));
+      if (!unit) return;
+      const sync = () => { at.hidden = unit.value !== "days"; };
+      unit.addEventListener("change", sync); sync();
+    });
     all("[data-effort-switch]", scope).forEach(select => {
       const sync = () => all("[data-effort-for]", select.closest("form")).forEach(el => { el.hidden = el.dataset.effortFor !== select.value; });
       select.addEventListener("change", sync); sync();
@@ -305,19 +485,15 @@
     });
   }
   setupForms();
-  const unit = query("select[name=unit]");
-  const atTime = query("[data-at-time]");
-  if (unit && atTime) {
-    const sync = () => { atTime.hidden = unit.value !== "days"; };
-    unit.addEventListener("change", sync); sync();
-  }
   window.addEventListener("beforeunload", event => {
     if (query("form.dirty")) { event.preventDefault(); event.returnValue = ""; }
   });
 
   // Keep workload previews based on all tasks, even when the table is filtered.
-  const deal = query("form.deal");
-  if (deal) {
+  let deal = query("form.deal");
+  let managementSubmitting = false;
+  function setupDeal() {
+    if (!deal) return;
     const rows = all("[data-grid-row]", deal);
     const fields = row => all("input[name], select[name]", row).filter(input => input.type !== "hidden");
     const value = input => input.type === "checkbox" ? input.checked : input.value;
@@ -380,15 +556,16 @@
     }
     deal.addEventListener("input", updateDeal);
     deal.addEventListener("change", updateDeal);
-    deal.addEventListener("submit", () => deal.classList.remove("dirty"));
+    deal.addEventListener("submit", () => { managementSubmitting = true; deal.classList.remove("dirty"); });
     query("[data-select-all]", deal).addEventListener("change", event => { all("[data-row-select]", deal).forEach(input => { input.checked = event.target.checked; }); updateDeal(); });
     query("[data-apply-owner]", deal).addEventListener("click", () => { rows.filter(row => query("[data-row-select]", row).checked).forEach(row => { query(".owner-sel", row).value = query("[data-bulk-owner]", deal).value; }); updateDeal(); });
     query("[data-discard]", deal).addEventListener("click", () => { initial.forEach(inputs => inputs.forEach((original, input) => { if (input.type === "checkbox") input.checked = original; else input.value = original; })); updateDeal(); });
     updateDeal();
   }
+  setupDeal();
 
   // A full-page editor is always available. Wide desktops can open it beside the table.
-  const editor = query("#task-editor");
+  let editor = query("#task-editor");
   let editorController;
   function lockGrid(locked) {
     if (!deal) return;
@@ -415,8 +592,9 @@
     return true;
   }
   if (editor) {
-    query("[data-close-editor]").addEventListener("click", closeEditor);
     document.addEventListener("click", async event => {
+      const close = event.target.closest("[data-close-editor]");
+      if (close) { closeEditor(); return; }
       const cancel = event.target.closest("[data-cancel-editor]");
       if (cancel && editor.contains(cancel)) { event.preventDefault(); closeEditor(); return; }
       const link = event.target.closest("[data-task-editor]");
@@ -443,50 +621,172 @@
     document.addEventListener("keydown", event => { if (event.key === "Escape" && !editor.hidden) closeEditor(); });
   }
 
-  // Find any task: results replace the list as you type. Without JavaScript the form reloads the page.
+  // Search stays on the current list, with only the newest response allowed to render.
   const searchForm = query("[data-task-search]");
   if (searchForm) {
     const input = query('input[name="q"]', searchForm);
     const clear = query("[data-search-clear]", searchForm);
+    const panel = query("[data-search-panel]");
+    const status = query("[data-search-status]");
+    const launch = query("[data-open-search]");
+    const cancel = query("[data-close-search]");
     const board = query(".dashboard");
-    const listView = board.dataset.view === "search" ? "today" : board.dataset.view;   // where Clear returns to
-    let timer, controller;
+    const listView = new URL(location.href).searchParams.get("view") || "today";
+    let timer, controller, generation = 0;
     const words = () => input.value.trim().replace(/\s+/g, " ");
-    async function showResults() {
+    function openSearch(focus = true) {
+      panel.hidden = false;
+      board.classList.add("search-open");
+      if (focus) { input.focus(); input.scrollIntoView({block:"nearest", behavior:"instant"}); }
+    }
+    async function showResults(ticket = generation) {
       clearTimeout(timer);
-      if (savingTask) { timer = setTimeout(showResults, 300); return; }
+      if (ticket !== generation) return false;
+      if (savingTask) { timer = setTimeout(() => showResults(ticket), 200); return false; }
       const q = words();
-      if (q === board.dataset.q) return;
+      clear.hidden = !input.value;
+      if (q === board.dataset.q) return true;
       const url = new URL(searchForm.action, location.href);
+      if (listView !== "today") url.searchParams.set("view", listView);
       if (q) url.searchParams.set("q", q);
-      else if (listView !== "today") url.searchParams.set("view", listView);
       controller?.abort();
-      controller = new AbortController();
+      const request = controller = new AbortController();
+      status.textContent = "Searching…";
+      panel.setAttribute("aria-busy", "true");
+      query("#tasks-region").setAttribute("aria-busy", "true");
       try {
-        const response = await fetch(url, { cache: "no-store", credentials: "same-origin", signal: controller.signal });
+        const response = await fetch(url, {cache:"no-store", credentials:"same-origin", signal:request.signal});
         if (!response.ok || response.redirected) throw new Error("search");
         const page = new DOMParser().parseFromString(await response.text(), "text/html");
-        const next = page.getElementById("tasks-region"), nextBoard = query(".dashboard", page);
-        if (savingTask) { timer = setTimeout(showResults, 300); return; }
+        if (ticket !== generation || request.signal.aborted) return false;
+        if (savingTask) { timer = setTimeout(() => showResults(ticket), 200); return false; }
+        const next = query("#tasks-region", page), nextBoard = query(".dashboard", page);
         if (!next || !nextBoard) throw new Error("search");
-        document.getElementById("tasks-region").replaceWith(next);
+        query("#tasks-region").replaceWith(next);
         paint(next); setupForms(next);
         board.dataset.view = nextBoard.dataset.view;
         board.dataset.q = nextBoard.dataset.q;
         const tabs = query(".period-tabs", page);
         if (tabs) query(".period-tabs")?.replaceWith(tabs);
-        clear.hidden = !q;
-        // On a phone, bring the box to the top so the keyboard leaves room for the results.
-        if (q && window.matchMedia("(max-width:999px)").matches && searchForm.getBoundingClientRect().top > 24) searchForm.scrollIntoView({ block: "start", behavior: "instant" });
-        history.replaceState(null, "", url.pathname + url.search);
+        query("[data-current-list-label]").textContent = query("[data-current-list-label]", page).textContent;
+        status.textContent = q ? query(".task-panel-heading > span", next).textContent : "";
+        window.MoleMotion?.observe();
+        history.replaceState(history.state, "", url.pathname + url.search);
+        return true;
       } catch (error) {
-        if (error.name !== "AbortError") toast("Couldn't search just now. Check your connection and try again.", "error");
+        if (ticket === generation && error.name !== "AbortError") {
+          status.textContent = "Couldn't search. Check your connection and try again.";
+          toast(status.textContent, "error", () => showResults(generation), "Try again");
+        }
+        return false;
+      } finally {
+        if (ticket === generation) {
+          panel.removeAttribute("aria-busy");
+          query("#tasks-region")?.removeAttribute("aria-busy");
+        }
       }
     }
-    query("[data-search-submit]", searchForm).hidden = true;   // typing is enough; Enter still works
-    input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(showResults, 180); });
-    searchForm.addEventListener("submit", event => { event.preventDefault(); input.blur(); showResults(); });
-    clear.addEventListener("click", event => { event.preventDefault(); input.value = ""; showResults(); input.focus(); });
+    function scheduleSearch(immediate = false) {
+      clearTimeout(timer); controller?.abort(); generation++;
+      panel.removeAttribute("aria-busy");
+      query("#tasks-region")?.removeAttribute("aria-busy");
+      status.textContent = "";
+      clear.hidden = !input.value;
+      if (immediate) return showResults(generation);
+      timer = setTimeout(() => showResults(generation), 200);
+    }
+    query("[data-search-submit]", searchForm).hidden = true;
+    launch.hidden = cancel.hidden = false;
+    panel.hidden = !board.dataset.q;
+    if (board.dataset.q) openSearch(false);
+    launch.addEventListener("click", () => openSearch());
+    input.addEventListener("input", event => { if (!event.isComposing) scheduleSearch(); });
+    input.addEventListener("compositionend", () => scheduleSearch());
+    searchForm.addEventListener("submit", event => { event.preventDefault(); input.blur(); scheduleSearch(true); });
+    clear.addEventListener("click", event => { event.preventDefault(); input.value = ""; scheduleSearch(true); input.focus(); });
+    cancel.addEventListener("click", async () => {
+      input.value = "";
+      if (await scheduleSearch(true)) {
+        panel.hidden = true; board.classList.remove("search-open"); launch.focus({preventScroll:true});
+      }
+    });
+  }
+
+  // Management filters are live too. A draft pauses filtering until it is saved or discarded.
+  const filters = query("[data-live-filters]");
+  if (filters) {
+    const status = query("[data-filter-status]");
+    const clear = query("[data-filter-clear]", filters);
+    let timer, controller, generation = 0, pending = false;
+    const address = () => {
+      const url = new URL(location.pathname, location.href);
+      for (const [key, value] of new FormData(filters)) if (value.trim()) url.searchParams.set(key, value.trim());
+      return url;
+    };
+    async function filterResults(ticket = generation) {
+      clearTimeout(timer);
+      if (ticket !== generation || managementSubmitting) return;
+      const url = address();
+      clear.hidden = !url.search;
+      all('input[name="return_to"], input[name="back"]', query("#management-results")).forEach(input => { input.value = url.pathname + url.search; });
+      if (query("form.dirty", query("#management-results"))) {
+        pending = true;
+        status.textContent = "Save or discard your edits to update the results.";
+        return;
+      }
+      pending = false;
+      if (url.pathname + url.search === location.pathname + location.search) { status.textContent = ""; return; }
+      editorController?.abort();
+      controller?.abort();
+      const request = controller = new AbortController();
+      status.textContent = "Updating results…";
+      query("#management-results").setAttribute("aria-busy", "true");
+      try {
+        const response = await fetch(url, {cache:"no-store", credentials:"same-origin", signal:request.signal});
+        if (!response.ok || response.redirected) throw new Error("filters");
+        const page = new DOMParser().parseFromString(await response.text(), "text/html");
+        if (ticket !== generation || request.signal.aborted || managementSubmitting) return;
+        if (query("form.dirty", query("#management-results"))) {
+          pending = true; status.textContent = "Save or discard your edits to update the results."; return;
+        }
+        const next = query("#management-results", page);
+        if (!next) throw new Error("filters");
+        query("#management-results").replaceWith(next);
+        deal = query("form.deal"); editor = query("#task-editor");
+        setupDeal(); setupForms(next); paint(next);
+        status.textContent = query("[data-results-count]", next).textContent;
+        history.replaceState(history.state, "", url.pathname + url.search);
+        const create = query('a[href*="/manage/tasks/new"]'), nextCreate = query('a[href*="/manage/tasks/new"]', page);
+        if (create && nextCreate) create.href = nextCreate.href;
+      } catch (error) {
+        if (ticket === generation && error.name !== "AbortError") {
+          status.textContent = "Couldn't update results. Check your connection and try again.";
+          toast(status.textContent, "error", () => filterResults(generation), "Try again");
+        }
+      } finally { if (ticket === generation) query("#management-results")?.removeAttribute("aria-busy"); }
+    }
+    function scheduleFilters(immediate = false) {
+      clearTimeout(timer); controller?.abort(); generation++;
+      query("#management-results")?.removeAttribute("aria-busy");
+      timer = setTimeout(() => filterResults(generation), immediate ? 0 : 200);
+    }
+    query("[data-filter-submit]", filters).hidden = true;
+    filters.addEventListener("input", event => { if (!event.isComposing) scheduleFilters(); });
+    filters.addEventListener("change", () => scheduleFilters(true));
+    filters.addEventListener("compositionend", () => scheduleFilters());
+    filters.addEventListener("submit", event => { event.preventDefault(); scheduleFilters(true); });
+    clear.addEventListener("click", event => {
+      event.preventDefault();
+      all("input,select", filters).forEach(input => { input.value = ""; });
+      scheduleFilters(true);
+    });
+    document.addEventListener("click", event => {
+      if (pending && event.target.closest("[data-discard], [data-close-editor], [data-cancel-editor]")) scheduleFilters(true);
+    });
+    document.addEventListener("submit", event => {
+      if (!event.defaultPrevented && event.target.closest("#task-editor")) managementSubmitting = true;
+      if (managementSubmitting) { clearTimeout(timer); controller?.abort(); generation++; }
+    });
   }
 
   const installed = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
@@ -518,9 +818,19 @@
   let needsRefresh = false;
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) { hiddenAt = Date.now(); return; }
-    if ((needsRefresh || (hiddenAt && Date.now() - hiddenAt > 30000)) && navigator.onLine && !query("form.dirty") && !savingTask) location.reload();
+    if ((needsRefresh || (hiddenAt && Date.now() - hiddenAt > 30000)) && navigator.onLine && !query("form.dirty") && !savingTask && !query("dialog[open]")) {
+      if (query(".dashboard,#household-summary,#task-detail-region,#sequence-run-region,#occurrence-region")) {
+        needsRefresh = false;
+        refreshScheduledRegions(true).catch(() => { needsRefresh = true; });
+      } else location.reload();
+    }
   });
-  window.addEventListener("pageshow", event => { if (event.persisted && !query("form.dirty") && navigator.onLine) location.reload(); });
+  window.addEventListener("pageshow", event => {
+    if (event.persisted && !query("form.dirty") && navigator.onLine) {
+      if (query(".dashboard,#household-summary,#task-detail-region,#sequence-run-region,#occurrence-region")) refreshScheduledRegions(true).catch(() => { needsRefresh = true; });
+      else location.reload();
+    }
+  });
   // Recheck the server when a waiting step becomes ready, including in the Home Screen app.
   setInterval(() => {
     if (document.hidden || savingTask || !navigator.onLine || query("form.dirty") || document.activeElement?.closest("form")) return;
@@ -603,12 +913,19 @@
   if (navigation) {
     const sizeNavigation = () => {
       const fixed = getComputedStyle(navigation).position === "fixed";
-      navigation.classList.toggle("large-text", fixed && parseFloat(getComputedStyle(root).fontSize) > 24);
+      const largeText = fixed && parseFloat(getComputedStyle(root).fontSize) > 24;
+      navigation.classList.toggle("large-text", largeText);
+      root.dataset.largeText = String(largeText);
       root.style.setProperty("--nav-height", fixed ? Math.ceil(navigation.getBoundingClientRect().height) + "px" : "0px");
     };
     sizeNavigation();
-    if ("ResizeObserver" in window) new ResizeObserver(sizeNavigation).observe(navigation);
-    window.addEventListener("resize", sizeNavigation);
+    let navigationFrame;
+    const queueNavigationSize = () => {
+      if (navigationFrame) return;
+      navigationFrame = requestAnimationFrame(() => { navigationFrame = null; sizeNavigation(); });
+    };
+    if ("ResizeObserver" in window) new ResizeObserver(queueNavigationSize).observe(navigation);
+    window.addEventListener("resize", queueNavigationSize);
   }
   requestAnimationFrame(() => document.body.classList.add("ready"));
 })();

@@ -2,7 +2,7 @@
 {% from '_macros.html' import icon, mole with context %}
 {% block title %}Siri{% endblock %}
 {% block content %}
-<p><a href="{{ url_for('main.more') }}" class="text-action">{{ icon('arrow') }} Back to More</a></p>
+<p><a href="{{ url_for('main.more') }}" class="text-action">{{ icon('arrow') }} Back to Settings</a></p>
 <div class="mole-note page-title">{{ mole('suggestion', 'lg') }}<div><p class="eyebrow">Hands busy?</p><h1>Tell Siri.</h1><p class="muted">Say “Hey Siri, I did a chore”, then name it. Siri crosses it off and tells you what’s left.</p></div></div>
 
 {% if new_key %}

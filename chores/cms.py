@@ -191,7 +191,7 @@ def tasks_bulk():
     for e in errors:
         flash(e, "error")
     flash(f"Saved. {changed} task{'s' if changed != 1 else ''} changed.", "ok")
-    return redirect(request.referrer or url_for("manage.tasks"))
+    return redirect(safe_next(request.form["return_to"]) if request.form.get("return_to") else request.referrer or url_for("manage.tasks"))
 
 
 def _task_form(task=None):

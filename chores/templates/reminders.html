@@ -3,7 +3,9 @@
 {% block title %}Remind me: {{ task.name }}{% endblock %}
 {% block content %}
 <p><a href="{{ url_for('main.task_link', task_id=task.id) }}" class="text-action">{{ icon('arrow') }} Back to task</a></p>
-<div class="mole-note page-title">{{ mole('reminder', 'lg') }}<div><p class="eyebrow">A little help remembering</p><h1>Remind me.</h1><p class="muted">{{ task.name }}</p></div></div>
+<div data-reminder-content>
+<div class="sheet-header"><div><h1>Remind me</h1><p class="muted">{{ task.name }}</p></div><button class="text-action" type="button" data-close-reminder hidden>Done</button></div>
+<p class="small muted" data-sheet-status role="status"></p>
 {% if due %}<p class="context-note">Next due {{ due.date|human_date }}{% if task.due_time %} by {{ task.due_time|clock }}{% endif %}. Your reminder is skipped when the task is already done.</p>{% endif %}
 {% if not allowed %}<section class="card"><p>Reminders count back from a due date, and this task doesn't have one.</p><a class="btn" href="{{ url_for('manage.task_edit', task_id=task.id) }}">{{ 'Set a due date' if task.frequency == 'once' else 'Change its schedule' }}</a></section>
 {% else %}
@@ -12,4 +14,5 @@
 <section class="card"><h2>Your reminders</h2>{% if items %}<ul class="reminder-list">{% for r in items %}<li><span>{{ r.text }}</span><form method="post" action="{{ url_for('main.reminder_delete', reminder_id=r.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="text-action">Remove</button></form></li>{% endfor %}</ul>{% else %}<p class="muted">No reminders yet. Choose a time that works for you.</p>{% endif %}{% if not has_device %}<p class="context-note small">Enable notifications below to receive reminders on this device.</p>{% endif %}</section>
 {% include '_push_card.html' %}
 {% endif %}
+</div>
 {% endblock %}

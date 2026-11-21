@@ -382,6 +382,33 @@ def _task_or_404(task_id):
     return task
 
 
+@bp.get("/tasks/<int:task_id>/detail")
+@login_required
+def task_detail(task_id):
+    """A focused task screen, retaining the exact date/receipt selected in the list."""
+    task = _task_or_404(task_id)
+    occurrence_id = request.args.get("occurrence_id", type=int)
+    period = request.args.get("period")
+    if occurrence_id:
+        occurrence = scheduling.get_occurrence(occurrence_id)
+        if not occurrence or occurrence["task_id"] != task_id:
+            abort(404)
+        row = scheduling._display_row(occurrence)
+    else:
+        board = logic.board([task["owner"]])
+        rows = [r for group in board.values() for r in group if r["task"]["id"] == task_id]
+        row = next((r for r in rows if not period or r["period_key"] == period), None)
+        if not row:
+            # A stale list must never silently act on a different occurrence.
+            return redirect(url_for("main.task_link", task_id=task_id))
+        row = logic._list_row(row, periods.today())
+    own = row["task"]["owner"] in (g.user["username"], logic.SHARED, logic.VOLUNTEER)
+    back = safe_next(request.args.get("back", url_for("main.home")))
+    return render_template("task_detail.html", row=row, own=own,
+                           back=back, detail_section="together" if urlsplit(back).path == "/compare" else "tasks",
+                           nags=reminders.task_ids_for(g.user["id"]))
+
+
 @bp.get("/tasks/<int:task_id>")
 @login_required
 def task_link(task_id):
@@ -565,4 +592,5 @@ def compare():
                                       "points": sum(p["stats"]["points"] for p in players),
                                       "volunteer": sum(p["stats"]["volunteer"] for p in players)},
                            dash=logic.dashboard(g.user["username"], d),
+                           shared_view=logic.task_views({"board": logic.board([logic.SHARED], d)}, d)["today"],
                            nags=reminders.task_ids_for(g.user["id"]))

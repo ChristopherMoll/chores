@@ -1,6 +1,6 @@
 {% from '_macros.html' import task_row, task_rows, bar, mole with context %}
 <section class="task-panel" data-task-panel>
-  <header class="task-panel-heading"><h2>{{ 'Your day' if selected == 'today' and own else 'Results for “' ~ current_view.query ~ '”' if selected == 'search' else current_view.label }}</h2><span class="muted small" {{ 'role=status' if selected == 'search' }}>{% if selected == 'search' %}{{ current_view.rows|length }} found{% elif selected == 'other' %}Log a task whenever you do it{% else %}{{ current_view.progress.done }} of {{ current_view.progress.total }} done{% endif %}</span></header>
+  <header class="task-panel-heading"><h2>{{ 'Your day' if selected == 'today' and own else 'Results for “' ~ current_view.query ~ '”' if selected == 'search' else current_view.label }}</h2><span class="muted small" {{ 'role=status' if selected == 'search' }}>{% if selected == 'search' %}{{ current_view.rows|length }} found{% elif selected == 'other' %}Record whenever you do it{% else %}{{ current_view.progress.done }} of {{ current_view.progress.total }} done{% endif %}</span></header>
   {% if selected not in ('other', 'search') %}{{ bar(current_view.progress, label=current_view.label ~ ' tasks completed') }}{% endif %}
   <p class="list-hint">{{ current_view.hint }}</p>
   {% if current_view.open %}{{ task_rows(current_view.open, own, g.user) }}

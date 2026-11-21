@@ -1,32 +1,54 @@
 {% extends "base.html" %}
 {% from "_macros.html" import mole, icon with context %}
-{% block title %}{{ 'My tasks' if own else who.display_name ~ "'s tasks" }}{% endblock %}
+{% block title %}{{ current_view.label if own else who.display_name ~ "'s tasks" }}{% endblock %}
 {% block content %}
 {% set today_progress = task_views.today.progress %}
 {% set search_query = current_view.query if selected == 'search' else '' %}
+{% set all_done = today_progress.total and today_progress.done == today_progress.total %}
 <div class="dashboard" data-view="{{ selected }}" data-q="{{ search_query }}" data-own="{{ 'true' if own else 'false' }}" data-username="{{ who.username }}">
-  <section class="hero">
-    <div class="hero-copy"><p class="eyebrow">{{ today|datefmt('%A, %B %-d') }}</p><h1>{{ 'Hi, ' ~ who.display_name ~ '.' if own else who.display_name ~ "'s tasks" }}</h1><p class="lede" id="hero-lede">{% if today_progress.total and today_progress.done == today_progress.total %}Today's list is taken care of.{% elif today_progress.total %}A little at a time.{% else %}A little breathing room today.{% endif %}</p></div>
-    {% set all_done = today_progress.total and today_progress.done == today_progress.total %}
+  <header class="day-header">
+    <div class="day-heading">
+      <p class="day-date">{{ today|datefmt('%A, %B %-d') }}</p>
+      <details class="list-picker">
+        <summary aria-label="Choose task list"><h1 data-current-list-label>{{ current_view.label }}</h1>{{ icon('chevron') }}</summary>
+        <nav class="period-tabs" aria-label="Task period">
+          {% for key in ('today','week','month','once','other') %}<a href="{{ request.path }}?view={{ key }}" class="{{ 'on' if selected == key }}" {{ 'aria-current=page' if selected == key }}><span>{{ task_views[key].label }}</span><span class="tab-count" data-view-count="{{ key }}">{{ task_views[key].remaining }}</span>{{ icon('check') }}</a>{% endfor %}
+        </nav>
+      </details>
+      <p class="lede" id="hero-lede">{% if all_done %}Today's list is taken care of.{% elif today_progress.total %}One thing at a time.{% else %}A little breathing room today.{% endif %}</p>
+    </div>
     <span class="mole hero-mole" id="hero-mole" data-mascot data-pose="{{ 'celebrate' if all_done else 'default' }}" aria-hidden="true"><span data-mole-state="working" {{ 'hidden' if all_done }}>{{ mascot_art('default') }}</span><span data-mole-state="celebrate" {{ 'hidden' if not all_done }}>{{ mascot_art('celebrate') }}</span></span>
+    {% if own %}<button class="icon-button search-launch" type="button" data-open-search hidden aria-label="Search all tasks">{{ icon('search') }}</button>{% endif %}
+  </header>
+  {% if not own %}<p class="viewing-note">{{ who.display_name }}'s tasks. <a href="{{ url_for('main.home') }}">Back to my tasks</a></p>{% endif %}
+  {% if away %}<p class="context-note">{{ 'You are' if own else who.display_name ~ ' is' }} away. Reminders are paused and your streak is protected.</p>{% endif %}
+  {% if own and thanks_notes %}<div class="thanks-note" role="status">{{ icon('heart') }}<div>{% for note in thanks_notes %}<p>{{ note }}</p>{% endfor %}</div><form method="post" action="{{ url_for('main.thanks_seen') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="text-action" type="submit" aria-label="Dismiss thank-you">You're welcome</button></form></div>{% endif %}
+  {% if own and g.user.role == 'member' %}
+  <section class="search-panel" data-search-panel aria-label="Search all tasks">
+    <form method="get" action="{{ request.path }}" class="task-search" role="search" data-task-search>
+      <label class="search-field"><span class="sr-only">Find any task</span>{{ icon('search') }}<input type="search" name="q" value="{{ search_query }}" maxlength="80" placeholder="Search all tasks" autocomplete="off" autocapitalize="none" enterkeyhint="search" aria-controls="tasks-region"></label>
+      <button class="btn" type="submit" data-search-submit>Search</button>
+      <a class="text-action" href="{{ request.path }}" data-search-clear {{ 'hidden' if not search_query }}>Clear</a>
+      <button class="text-action" type="button" data-close-search hidden>Cancel</button>
+    </form>
+    <p class="search-status small muted" data-search-status role="status" aria-live="polite"></p>
   </section>
-  {% if not own %}<p class="viewing-note">You're viewing {{ who.display_name }}'s list. <a href="{{ url_for('main.home') }}">Back to my tasks</a></p>{% endif %}
-  {% if away %}<p class="context-note">{{ 'You are' if own else who.display_name ~ ' is' }} away. Personal reminders are paused and the streak is protected. Tasks stay available for a helping hand.</p>{% endif %}
-  {% if own and thanks_notes %}<div class="thanks-note" role="status">{{ icon('heart') }}<div>{% for note in thanks_notes %}<p>{{ note }}</p>{% endfor %}</div><form method="post" action="{{ url_for('main.thanks_seen') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="text-action" type="submit" aria-label="You're welcome: put this thank-you away">You're welcome</button></form></div>{% endif %}
-  {% if own and g.user.role == 'member' %}<form method="get" action="{{ request.path }}" class="task-search" role="search" data-task-search><label class="search-field"><span class="sr-only">Find any task</span>{{ icon('search') }}<input type="search" name="q" value="{{ search_query }}" maxlength="80" placeholder="Find any task to check off…" autocomplete="off" autocapitalize="none" enterkeyhint="search"></label><button class="btn" type="submit" data-search-submit>Search</button><a class="text-action" href="{{ request.path }}" data-search-clear {{ 'hidden' if not search_query }}>Clear search</a></form>{% endif %}
-  {% if own %}<form method="post" action="{{ url_for('main.quick_add') }}" class="quick-add" data-track-changes><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ run_token() }}"><label class="sr-only" for="quick-task">Add a one-off task for me</label><input id="quick-task" name="name" maxlength="80" required placeholder="Add a one-off for me…" autocomplete="off"><button class="btn primary" type="submit">{{ icon('plus') }} Add</button><details><summary class="text-action">Choose a due date</summary><label>Due date (optional)<input type="date" name="due_date"></label></details></form>{% endif %}
-  <nav class="period-tabs" aria-label="Task period">
-    {% for key in ('today','week','month','once','other') %}<a href="{{ request.path }}?view={{ key }}" class="{{ 'on' if selected == key }}" {{ 'aria-current=page' if selected == key }}>{{ task_views[key].label }}<span class="tab-count" data-view-count="{{ key }}">{{ task_views[key].remaining }}</span></a>{% endfor %}
-  </nav>
-  <div class="task-workspace">
-    <div id="tasks-region">{% include '_task_list.html' %}</div>
-    <aside class="task-sidebar">
-      <div class="look-ahead"><p class="eyebrow">A little planning</p><h2>Room for the rest.</h2><p class="muted small">Your other lists are here whenever you're ready.</p>
-        {% for key in ('week','month','once','other') %}<a href="{{ request.path }}?view={{ key }}" class="look-ahead-link {{ 'on' if selected == key }}"><span>{{ task_views[key].label }}</span><span><b data-view-count="{{ key }}">{{ task_views[key].remaining }}</b> open {{ icon('chevron') }}</span></a>{% endfor %}
-      </div>
-      {% if own %}<a class="together-note" href="{{ url_for('main.compare') }}">{{ icon('heart') }}<span><strong>We're in this together.</strong><span>See shared work &amp; ways to help</span></span>{{ icon('chevron') }}</a>{% endif %}
-    </aside>
-  </div>
-  {% if own %}<div class="install-nudge" data-install-nudge hidden><div><strong>A little closer to home.</strong><p>Add MoleChores to your Home Screen for quick access and optional reminders.</p><a href="{{ url_for('main.more') }}#install-help">Show me how</a></div><button type="button" class="icon-button" data-dismiss-install aria-label="Dismiss installation suggestion">×</button></div>{% endif %}
+  {% endif %}
+  <div class="task-workspace"><div id="tasks-region">{% include '_task_list.html' %}</div></div>
+  {% if own %}
+  <div class="capture-launch" hidden><button class="btn primary" type="button" data-open-capture>{{ icon('plus') }} Add task</button></div>
+  <section class="quick-capture" id="quick-capture" aria-labelledby="capture-title">
+    <div class="sheet-header"><h2 id="capture-title">Add task</h2><button type="button" class="text-action" data-close-capture hidden>Cancel</button></div>
+    <form method="post" action="{{ url_for('main.quick_add') }}" class="form quick-add" data-track-changes>
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="request_key" value="{{ run_token() }}">
+      <label for="quick-task">Task name<input id="quick-task" name="name" maxlength="80" required placeholder="What needs doing?" autocomplete="off" enterkeyhint="done"></label>
+      <label>Due date <span class="muted">Optional</span><input type="date" name="due_date"></label>
+      <p class="muted small">A one-off task, assigned to you.</p>
+      <button class="btn primary wide" type="submit">Add task</button>
+    </form>
+  </section>
+  <dialog class="capture-sheet" id="capture-dialog" aria-labelledby="capture-title"></dialog>
+  <div class="install-nudge" data-install-nudge hidden><div><strong>Open from your Home Screen.</strong><p>Quick access to your chores and optional reminders.</p><a href="{{ url_for('main.more') }}#install-help">Show me how</a></div><button type="button" class="icon-button" data-dismiss-install aria-label="Dismiss installation suggestion">×</button></div>
+  {% endif %}
 </div>
 {% endblock %}

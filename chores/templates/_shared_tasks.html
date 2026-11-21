@@ -1,0 +1,7 @@
+{% from '_macros.html' import task_rows with context %}
+<section id="shared-region" class="shared-work">
+  <div class="section-heading"><div><h2>Shared today</h2><p class="muted small">Either of you can take care of these.</p></div><span class="pill">{{ shared_view.open|length }} open</span></div>
+  {% if shared_view.open %}{{ task_rows(shared_view.open, g.user.role == 'member', g.user) }}{% else %}<p class="shared-empty">Shared work is taken care of for today.</p>{% endif %}
+  {% if shared_view.upcoming %}<details class="completed-group"><summary>Coming up <span>{{ shared_view.upcoming|length }}</span></summary>{{ task_rows(shared_view.upcoming, g.user.role == 'member', g.user) }}</details>{% endif %}
+  {% if shared_view.completed %}<details class="completed-group" data-disclosure="shared-completed"><summary>Completed <span>{{ shared_view.completed|length }}</span></summary>{{ task_rows(shared_view.completed, g.user.role == 'member', g.user) }}</details>{% endif %}
+</section>

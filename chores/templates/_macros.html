@@ -22,24 +22,24 @@
 <span class="mole {{ size }}" data-mascot data-pose="{{ pose }}" {% if alt %}role="img" aria-label="{{ alt }}"{% else %}aria-hidden="true"{% endif %}>{{ mascot_art(pose) }}</span>
 {% endmacro %}
 
-{% macro task_row(r, own, viewer, kind='mine') %}
+{% macro task_row(r, own, viewer, kind='mine', expanded=false) %}
 {% set t = r.task %}{% set c = r.completion %}
 {% set th = thanks_state(c, viewer) if c and viewer.role == 'member' else {} %}
 {% set can_undo = viewer.role == 'member' and r.done and (c.user_id == viewer.id or th.logged_by_viewer) and not r.cancelled %}
 {% set allowed = viewer.role == 'member' and ((own and t.owner in (viewer.username, 'shared', 'volunteer')) or can_undo) %}
 {% set interactive = not r.cancelled and not r.skipped and (can_undo or (allowed and not r.done and not r.waiting and not r.blocked)) %}
 {% set row_key = r.row_key if r.row_key else 'occurrence-' ~ r.occurrence_id if r.occurrence_id else 'task-' ~ t.id %}
-<li class="task{{ ' done' if r.done }}{{ ' waiting' if r.waiting or r.blocked }}" data-task="{{ t.id }}" data-row-key="{{ row_key }}" id="{{ row_key }}"{% if c %} data-completion-id="{{ c.id }}"{% endif %}{% if r.waiting and r.ready_at %} data-ready-at="{{ r.ready_at.isoformat() }}"{% endif %}>
+<li class="task{{ ' done' if r.done }}{{ ' waiting' if r.waiting or r.blocked }}{{ ' detail-row' if expanded }}" data-task="{{ t.id }}" data-row-key="{{ row_key }}" id="{{ row_key }}"{% if c %} data-completion-id="{{ c.id }}"{% endif %}{% if r.waiting and r.ready_at %} data-ready-at="{{ r.ready_at.isoformat() }}"{% endif %}>
   <form method="post" action="{{ url_for('main.toggle', task_id=t.id) }}" class="tick-form">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <input type="hidden" name="done" value="{{ '0' if r.done else '1' }}">
     <input type="hidden" name="period" value="{{ r.period_key }}">
     {% if c %}<input type="hidden" name="completion_id" value="{{ c.id }}">{% endif %}
     {% if r.occurrence_id %}<input type="hidden" name="occurrence_id" value="{{ r.occurrence_id }}">{% endif %}
-    <button class="tick" type="submit" {{ 'disabled' if not interactive }} aria-label="{{ ('Undo ' if r.done else 'Mark done: ') ~ t.name }}" aria-pressed="{{ 'true' if r.done else 'false' }}">{{ icon('check') }}</button>
+    <button class="{{ 'btn primary wide detail-complete' if expanded else 'tick' }}" type="submit" {{ 'disabled' if not interactive }} aria-label="{{ ('Undo ' if r.done else 'Mark done: ') ~ t.name }}" aria-pressed="{{ 'true' if r.done else 'false' }}">{{ icon('check') }}{% if expanded %}{{ 'Undo completion' if r.done else 'Waiting for previous step' if r.blocked else 'Not ready yet' if r.waiting else 'Mark done' if interactive else 'Not available' }}{% endif %}</button>
   </form>
-  <div class="task-content"><details class="task-body">
-    <summary>
+  <div class="task-content">{% if expanded %}<div class="task-body">{% else %}<details class="task-body">{% endif %}
+    <{{ 'div' if expanded else 'summary' }}{% if not expanded %} data-task-detail="{{ url_for('main.task_detail', task_id=t.id, occurrence_id=r.occurrence_id or none, period=r.period_key, back=task_back|default(request.full_path)) }}"{% endif %}>
       <span class="task-title-line"><span class="task-name">{{ t.name }}</span>{{ icon('chevron', 'disclosure') }}</span>
       <span class="task-meta">
         {% if r.done %}<span class="doneby">Taken care of by {{ c.doer }}</span>
@@ -53,23 +53,25 @@
         {% endif %}
         {% if t.id in nags|default([]) %}<span class="reminder-marker" aria-label="You have a reminder on this" title="You have a reminder on this">{{ icon('bell') }}</span>{% endif %}
       </span>
-    </summary>
+    </{{ 'div' if expanded else 'summary' }}>
     <div class="task-detail">
       {% if t.description %}<p>{{ t.description }}</p>{% endif %}
       {% if t.notes %}<div class="notes"><strong>What done looks like</strong><p>{{ t.notes }}</p></div>{% endif %}
       <p class="muted small">{{ t.grp }}{% if t.minutes_each is not none %} · {{ t.minutes_each|duration }} active work each time{% elif t.hours_month is not none %} · {{ t.hours_month|hours }} estimated h/month{% endif %}{% if c %}<br>Completed {{ c.done_on|human_date }} · {{ c.points }} points{% endif %}</p>
       <div class="task-detail-actions">
         {% if r.run_id %}<a href="{{ url_for('main.sequence_run', run_id=r.run_id) }}" class="text-action">{{ r.run_name }} · Started {{ r.run_label }}</a>{% elif viewer.role == 'member' and t.frequency not in ('other','sequence') %}<a href="{{ url_for('main.remind', task_id=t.id) }}" class="text-action">{{ icon('bell') }} Remind me</a>{% endif %}
-        <a href="{{ url_for('manage.task_edit', task_id=t.id, back=task_back|default(request.full_path)) }}" class="text-action">Edit task</a>
       </div>
       {% if allowed and r.waiting and not r.blocked and not r.cancelled %}<form class="tick-form" method="post" action="{{ url_for('main.toggle', task_id=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="done" value="1"><input type="hidden" name="occurrence_id" value="{{ r.occurrence_id }}"><input type="hidden" name="period" value="{{ r.period_key }}"><input type="hidden" name="early" value="1"><button class="btn" type="submit">Done early</button></form>{% endif %}
       {% if allowed and r.run_id and r.position and not r.done and not r.blocked and not r.cancelled %}<form class="ready-adjustment" method="post" action="{{ url_for('main.reschedule_occurrence', occurrence_id=r.occurrence_id) }}" data-track-changes><input type="hidden" name="csrf" value="{{ csrf_token() }}"><label>Ready in<input name="minutes" type="number" min="0" max="525600" value="1" required inputmode="numeric"></label><label>Unit<select name="unit"><option value="minutes">minutes</option><option value="hours" selected>hours</option><option value="days">days</option></select></label><button class="btn">Update ready time</button></form>{% endif %}
+      <details class="fold task-more-actions" data-disclosure="actions-{{ row_key }}"><summary>More actions</summary>
+      <a href="{{ url_for('manage.task_edit', task_id=t.id, back=task_back|default(request.full_path)) }}" class="text-action">Edit task</a>
       {% if allowed and own and not r.done and not r.waiting and not r.blocked and not r.cancelled and not r.skipped and t.owner in (viewer.username, 'shared') %}<div class="task-plan-actions">{% for m in thanks_helpers(viewer) %}<form method="post" action="{{ url_for('main.toggle', task_id=t.id) }}" class="tick-form credit-form"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="done" value="1"><input type="hidden" name="credit" value="{{ m.username }}"><input type="hidden" name="period" value="{{ r.period_key }}">{% if r.occurrence_id %}<input type="hidden" name="occurrence_id" value="{{ r.occurrence_id }}">{% endif %}<button class="text-action" type="submit">{{ icon('heart') }} {{ m.display_name }} did this · send thanks</button></form>{% endfor %}</div>{% endif %}
       {% if allowed and not r.done and not r.run_id and not r.cancelled and not r.skipped %}<div class="task-plan-actions"><form method="post" action="{{ url_for('main.task_plan', task_id=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="period" value="{{ r.period_key }}">{% if r.occurrence_id %}<input type="hidden" name="occurrence_id" value="{{ r.occurrence_id }}">{% endif %}<input type="hidden" name="action" value="skip"><button class="text-action">Not needed this time</button></form>{% if not r.has_sequence %}<form method="post" action="{{ url_for('main.task_plan', task_id=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="period" value="{{ r.period_key }}"><input type="hidden" name="action" value="yesterday"><button class="text-action">Did it yesterday</button></form>{% endif %}</div>{% endif %}
       {% if r.backlog_count %}<details class="fold missed-dates"><summary>Review {{ r.backlog_count }} older date{{ 's' if r.backlog_count != 1 }}</summary><ul>{% for old in r.backlog %}<li><a class="text-action" href="{{ url_for('main.occurrence_link', occurrence_id=old.occurrence_id) }}">{{ old.scheduled_date|human_date }}</a></li>{% endfor %}</ul>{% if allowed %}<form method="post" action="{{ url_for('main.task_plan', task_id=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="clear-older"><button class="btn">Clear the older ones</button><p class="muted small">Skips earlier unfinished dates, keeping the most recent one. Completed work and points are kept.</p></form>{% endif %}</details>{% endif %}
       {% if allowed and r.has_sequence %}<form method="post" action="{{ url_for('main.start_sequence', task_id=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="run_token" value="{{ run_token() }}"><button type="submit" class="text-action">Start another run</button></form>{% endif %}
+      </details>
     </div>
-  </details>
+  {% if expanded %}</div>{% else %}</details>{% endif %}
   {% if can_undo %}<form method="post" action="{{ url_for('main.toggle', task_id=t.id) }}" class="tick-form undo-form"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="done" value="0"><input type="hidden" name="period" value="{{ r.period_key }}"><input type="hidden" name="completion_id" value="{{ c.id }}">{% if r.occurrence_id %}<input type="hidden" name="occurrence_id" value="{{ r.occurrence_id }}">{% endif %}<button class="text-action undo-completion" type="submit" aria-label="Undo completion: {{ t.name }}">Undo completion</button></form>
   {% elif r.done and viewer.role == 'member' and not r.cancelled %}<p class="undo-note muted small">{{ c.doer }} can undo this completion.</p>{% endif %}
   {% if r.done and th.from_name %}<p class="thanks-line muted small">{{ icon('heart') }} {{ 'You' if th.from_user_id == viewer.id else th.from_name }} said thank you.</p>

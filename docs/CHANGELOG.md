@@ -2,6 +2,18 @@
 
 All notable changes to this project are recorded here. Versions follow [semantic versioning](https://semver.org): the major number goes up for changes that need a manual step (a data migration or config change), the minor number for new features, and the patch number for fixes.
 
+## [1.12.0] - 2026-11-20
+
+No manual step. Existing tasks, schedules, and completions are kept.
+
+### Changed
+
+- iPhone task lists start with a compact date and list picker. Search opens on demand, and Add task opens a keyboard-focused sheet with an optional due date. Duplicate planning navigation has been removed.
+- Tapping a task on iPhone opens a focused detail screen; desktop retains inline details. Secondary actions are grouped under More actions. Reminder presets and custom settings open in a sheet on iPhone. Optional swipe shortcuts have visible tap equivalents.
+- Together leads with shared work and volunteer opportunities, followed by household activity. Contributions, workload estimates and competition remain available in Household overview. More is now labeled Settings, and screen titles use direct labels.
+- Task search and management search/filters update live, cancel obsolete requests, and preserve keyboard focus. Management filtering pauses for unsaved table or editor changes; saving or discarding continues to the requested filters. Normal form submission remains available without JavaScript.
+- Returning to a list restores its scroll position and disclosures. Bottom navigation remembers the task list, saves show immediate feedback, and background refreshes preserve the current screen. Large text, safe areas, dark mode and reduced motion remain supported.
+
 ## [1.11.0] - 2026-11-15
 
 No manual step. The update adds one small table for sequence opt-outs on its own.
